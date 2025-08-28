@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+
+:root {
+  /* светлая тема */
+  --axis: #0f172a;       /* почти чёрный (slate-900) */
+  --legend: #0f172a;
+  --grid: #e2e8f0;       /* slate-200 */
+  --tt-bg: #ffffff;      /* tooltip bg */
+  --tt-border: #e5e7eb;  /* slate-200/300 */
+  --tt-text: #0f172a;
+  --tt-label: #334155;   /* slate-700 */
+}
+
+.dark {
+  /* тёмная тема */
+  --axis: #f1f5f9;       /* почти белый (slate-100) */
+  --legend: #f8fafc;     /* почти белый */
+  --grid: #475569;       /* slate-600 */
+  --tt-bg: #0b1220;      /* тёмный tooltip фон с лёгкой прозрачностью по вкусу */
+  --tt-border: #475569;
+  --tt-text: #e5e7eb;    /* slate-200 */
+  --tt-label: #cbd5e1;   /* slate-300 */
+}
+
