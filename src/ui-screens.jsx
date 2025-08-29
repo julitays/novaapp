@@ -20,6 +20,10 @@ import {
   Input,
   Select,
   CandidateCard,
+  qualityByCompetencies,
+  efficiencyIndex,
+  matchPercentFiltered, 
+  efficiencyIndexFiltered,
 } from "./modules";
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -233,49 +237,138 @@ export function SearchView({ go, setSearchResult, roles = initialRoles }) {
 // ────────────────────────────────────────────────────────────────────────────
 export function EmployeeProfileView({ emp, roles }) {
   const role = roles.find((r) => r.name === emp.readiness?.targetRole) || roles[0];
-  const percent = matchPercent(emp, role);
+
+  // --- НОВОЕ: фильтр + привязка метрик ---
+  const [selectedComps, setSelectedComps] = React.useState(
+    () => Object.keys(role.competencies || {}).slice(0, 3)
+  );
+  const [bindToFilter, setBindToFilter] = React.useState(false);
+
+  // История для графиков по навыкам (если нет competencies в части оценок — это ок)
+  const hist = (emp.assessments || [])
+    .map(a => ({ date: a.date, ...(a.competencies || {}) }))
+    .sort((a,b)=> new Date(a.date) - new Date(b.date));
+
+  // Готовность: глобальная vs по фильтру
+  const percentGlobal = matchPercent(emp, role);
+  const percentScoped = matchPercentFiltered(emp, role, selectedComps);
+  const percentToShow = bindToFilter ? percentScoped : percentGlobal;
+
+  // EI: глобальный vs по фильтру (если нет competencies — фильтрованный EI будет 0)
+  const eiGlobal = efficiencyIndex(emp.assessments || []);
+  const eiScoped = efficiencyIndexFiltered(emp.assessments || [], role, selectedComps);
+  const eiToShow = bindToFilter ? eiScoped : eiGlobal;
+
+  // Quality (текущий/предыдущий) по выбранным компам
+  const last = emp.assessments?.[emp.assessments.length-1] || {};
+  const prev = emp.assessments?.[emp.assessments.length-2] || {};
+  const q = qualityByCompetencies(
+    role.competencies,
+    last.competencies || emp.competencies || {},
+    prev.competencies || emp.competencies || {},
+    selectedComps
+  );
+
+  // Данные для радара (как было)
   const data = toRadarData(role.competencies, emp.competencies);
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold">{emp.name}</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-2">
-          <div className="text-sm text-slate-600">Должность: {emp.title}</div>
-          <div className="text-sm text-slate-600">Регион: {emp.region}</div>
-          <div className="text-sm text-slate-600">Последняя оценка: {emp.lastAssessment}</div>
-          <div className="text-sm">Цель: {role.name}</div>
-          <div className="text-sm">Готовность: <b>{percent}%</b></div>
-          <Button onClick={() => alert("PDF отчёт готов (демо)")}>Сгенерировать PDF-отчёт</Button>
-        </div>
-        <div className="w-full h-72">
-          <ResponsiveContainer>
-            <RadarChart data={data} outerRadius={110} margin={{ right: 120 }}>
-              <PolarGrid />
-              <PolarAngleAxis dataKey="competency" tick={{ fontSize: 11, fill: "currentColor" }} />
-              <PolarRadiusAxis angle={30} domain={[0, 4]} tick={{ fontSize: 10, fill: "currentColor" }} />
-              <Radar name="Эталон" dataKey="A" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} />
-              <Radar name="Сотр." dataKey="B" stroke="#10b981" fill="#10b981" fillOpacity={0.2} />
-              <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ paddingLeft: 16, color: "currentColor" }} />
-              <Tooltip content={<RadarTooltip />} />
-            </RadarChart>
-          </ResponsiveContainer>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">{emp.name}</h2>
+
+        {/* Тоггл привязки метрик к фильтру */}
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-slate-500">Привязать метрики к фильтру</label>
+          <input type="checkbox" checked={bindToFilter} onChange={(e)=>setBindToFilter(e.target.checked)} />
         </div>
       </div>
 
-      <div>
-        <div className="font-medium mb-2">Динамика готовности</div>
+      {/* Карточки-индикаторы */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={emp.assessments ?? []}>
+          <div className="text-sm text-slate-500">Готовность к роли</div>
+          <div className="text-3xl font-semibold mt-1">{percentToShow}%</div>
+          <div className="text-xs text-slate-500 mt-1">
+            {bindToFilter ? "по выбранным компетенциям" : `цель: ${role.name}`}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <div className="text-sm text-slate-500">Индекс эффективности (EI)</div>
+          <div className="text-3xl font-semibold mt-1">{eiToShow}%/мес</div>
+          <div className="text-xs mt-1">
+            {eiToShow >= 5 ? "быстрое развитие" : eiToShow >= 1 ? "нормальный темп" : "требуется стратегия"}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <div className="text-sm text-slate-500">Quality выбранных навыков</div>
+          <div className="text-3xl font-semibold mt-1">{q.now}%</div>
+          <div className={`text-xs mt-1 ${q.delta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+            {q.delta >= 0 ? `+${q.delta}%` : `${q.delta}%`} к предыдущей оценке
+          </div>
+        </div>
+      </div>
+
+      {/* Блок с карточкой инфо + радар (оставь как у тебя было) */}
+      {/* ... (твоя существующая разметка) ... */}
+
+      {/* Фильтр компетенций + график динамики */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="font-medium">Динамика по компетенциям</div>
+          <div className="flex gap-2 flex-wrap">
+            {Object.keys(role.competencies || {}).map(c => {
+              const active = selectedComps.includes(c);
+              return (
+                <button
+                  key={c}
+                  onClick={() =>
+                    setSelectedComps(prev => prev.includes(c) ? prev.filter(x=>x!==c) : [...prev, c])
+                  }
+                  className={`text-xs px-2 py-1 rounded-full border ${
+                    active
+                      ? "bg-indigo-600 text-white border-indigo-600"
+                      : "bg-white dark:bg-slate-800 border-slate-300"
+                  }`}
+                >
+                  {c}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="w-full h-64">
+          <ResponsiveContainer>
+            <LineChart data={hist}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
-              <YAxis domain={[0, 100]} />
+              <YAxis domain={[0, 4]} />
               <Tooltip />
-              <Line type="monotone" dataKey="percent" />
+              {selectedComps.map((c) => (
+                <Line key={c} type="monotone" dataKey={c} />
+              ))}
             </LineChart>
           </ResponsiveContainer>
         </div>
+
+        {/* сравнение с предыдущей оценкой — дельты по выбранным */}
+        {last.competencies && prev.competencies && (
+          <div className="text-sm text-slate-600">
+            {selectedComps.map(c => {
+              const cur = (last.competencies?.[c] ?? 0);
+              const pr  = (prev.competencies?.[c] ?? 0);
+              const d   = cur - pr;
+              return (
+                <span key={c} className="mr-3">
+                  {c}: <b>{cur}</b> ({d >= 0 ? `+${d}` : d})
+                </span>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -639,7 +732,7 @@ export function OrgStructureView({ go }) {
                 {open.gkam && (
                   <div className="rounded-xl border border-rose-200 dark:border-rose-700 p-3 text-sm bg-rose-50 dark:bg-rose-900/30">
                     <div className="mb-1">⚠ Срочно ищем таланты на GKAM Electronics</div>
-                    <Button onClick={() => go("search")}>Перейти к поиску</Button>
+                    <Button onClick={() => go({ view: "search" })}>Перейти к поиску</Button>
                   </div>
                 )}
               </div>
@@ -760,7 +853,144 @@ export function EmployeesListView({ go }) {
   );
 }
 
-// Переэкспорт, если где-то были старые импорты
-export { CandidateCard } from "./modules";
-export { initialRoles as rolesSeed } from "./modules";
-export { initialEmployees as employeesSeed } from "./modules";
+
+
+export function WizardView({ go }){
+const [step, setStep] = useState(1);
+const next = () => setStep(s => Math.min(4, s+1));
+const prev = () => setStep(s => Math.max(1, s-1));
+
+
+return (
+<div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+<div className="md:col-span-3 space-y-2">
+{[1,2,3,4].map(n=> (
+<div key={n} className={`rounded-xl px-3 py-2 text-sm border ${step===n?"bg-indigo-50 border-indigo-200 font-medium":"bg-white border-slate-200"}`}>Шаг {n}</div>
+))}
+</div>
+<div className="md:col-span-9 space-y-4">
+{step===1 && (
+<div className="rounded-2xl border border-slate-200 p-4 bg-white dark:bg-slate-900">
+<h3 className="font-semibold mb-2">Импорт данных</h3>
+<p className="text-sm text-slate-600 mb-3">Перетащи CSV/Excel или используй демо-данные.</p>
+<div className="rounded-xl border border-dashed border-slate-300 p-6 text-center">
+Drag & Drop CSV/Excel
+</div>
+<div className="mt-3 flex gap-2 flex-wrap">
+<Button variant="ghost" onClick={()=>alert("Импорт из Huntflow (демо)")}>Импорт из Huntflow</Button>
+<Button variant="ghost" onClick={()=>alert("Импорт из Skillaz (демо)")}>Импорт из Skillaz</Button>
+<Button variant="ghost" onClick={()=>alert("Импорт из HURMA (демо)")}>Импорт из HURMA</Button>
+<Button onClick={()=>alert("Загрузили демо-данные")}>Использовать демо-данные</Button>
+</div>
+</div>
+)}
+{step===2 && (
+<div className="rounded-2xl border border-slate-200 p-4 bg-white dark:bg-slate-900">
+<h3 className="font-semibold mb-2">Эталоны ролей</h3>
+<p className="text-sm text-slate-600 mb-3">Проверь, всё ли ок в эталонах. Можно создать новый через AI.</p>
+<Button onClick={()=>go("createRoleAI")}>Создать эталон через AI</Button>
+</div>
+)}
+{step===3 && (
+<div className="rounded-2xl border border-slate-200 p-4 bg-white dark:bg-slate-900">
+<h3 className="font-semibold mb-2">Сотрудники</h3>
+<p className="text-sm text-slate-600 mb-3">Проверь загруженные профили и готовность к целевым ролям.</p>
+<Button onClick={()=>go("employees")}>Открыть список сотрудников</Button>
+</div>
+)}
+{step===4 && (
+<div className="rounded-2xl border border-slate-200 p-4 bg-white dark:bg-slate-900">
+<h3 className="font-semibold mb-2">Готово</h3>
+<p className="text-sm text-slate-600 mb-3">Можно перейти к дашборду и поиску кандидатов.</p>
+<div className="flex gap-2">
+<Button onClick={()=>go("dashboard")}>На дашборд</Button>
+<Button variant="ghost" onClick={()=>go("search")}>Найти кандидатов</Button>
+</div>
+</div>
+)}
+
+
+<div className="flex items-center justify-between">
+<Button variant="ghost" onClick={prev} disabled={step===1}>Назад</Button>
+<div className="text-sm text-slate-500">Шаг {step} из 4</div>
+<Button onClick={next}>{step===4?"Завершить":"Далее"}</Button>
+</div>
+</div>
+</div>
+);
+}
+
+
+export function SettingsView(){
+const [tab, setTab] = useState("access");
+const Access = () => (
+<div className="rounded-2xl border border-slate-200 p-4 bg-white dark:bg-slate-900">
+<h3 className="font-semibold mb-3">Роли и доступы</h3>
+<table className="w-full text-sm">
+<thead className="bg-slate-50"><tr><th className="p-2 text-left">Роль</th><th className="p-2 text-left">Права</th><th className="p-2"></th></tr></thead>
+<tbody>
+<tr className="border-t">
+<td className="p-2">Интервьюер</td>
+<td className="p-2">Без зарплат, без личных данных, только фидбек</td>
+<td className="p-2"><Button variant="ghost" onClick={()=>alert("Редактирование (демо)")}>Редактировать</Button></td>
+</tr>
+<tr className="border-t">
+<td className="p-2">HRBP</td>
+<td className="p-2">Всё по своей вертикали</td>
+<td className="p-2"><Button variant="ghost">Редактировать</Button></td>
+</tr>
+</tbody>
+</table>
+</div>
+);
+const Integrations = () => (
+<div className="rounded-2xl border border-slate-200 p-4 bg-white dark:bg-slate-900 space-y-3">
+<h3 className="font-semibold">Интеграции</h3>
+<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+{[
+{name:"Gmail", status:"OK"},
+{name:"Outlook", status:"DELAY 3m"},
+{name:"hh.ru", status:"ERROR"},
+{name:"Calendar", status:"OK"},
+].map(i=> (
+<div key={i.name} className="rounded-xl border p-3 flex items-center justify-between">
+<div>{i.name}</div>
+<div className={`text-xs px-2 py-0.5 rounded-full ${i.status==="OK"?"bg-green-100 text-green-700":i.status.startsWith("DELAY")?"bg-amber-100 text-amber-700":"bg-red-100 text-red-700"}`}>{i.status}</div>
+</div>
+))}
+</div>
+<Button onClick={()=>alert("Пересинхронизировать (демо)")}>Пересинхронизация</Button>
+</div>
+);
+const Workflows = () => (
+<div className="rounded-2xl border border-slate-200 p-4 bg-white dark:bg-slate-900">
+<div className="flex items-center justify-between mb-3">
+<h3 className="font-semibold">Workflows</h3>
+<Button onClick={()=>alert("Конструктор правил (демо)")}>+ Создать правило</Button>
+</div>
+<div className="space-y-2">
+<div className="rounded-xl border p-3">
+IF <b>Готовность ≥ 70%</b> THEN <b>Предложить повышение</b>
+</div>
+<div className="rounded-xl border p-3">
+IF <b>Падение компетенции &gt; 2</b> THEN <b>Назначить микро‑курс</b>
+</div>
+</div>
+</div>
+);
+
+
+return (
+<div className="space-y-4">
+<div className="flex items-center gap-2">
+<Button variant={tab==="access"?"primary":"ghost"} onClick={()=>setTab("access")}>Доступы</Button>
+<Button variant={tab==="integrations"?"primary":"ghost"} onClick={()=>setTab("integrations")}>Интеграции</Button>
+<Button variant={tab==="workflows"?"primary":"ghost"} onClick={()=>setTab("workflows")}>Workflows</Button>
+</div>
+{tab==="access" && <Access/>}
+{tab==="integrations" && <Integrations/>}
+{tab==="workflows" && <Workflows/>}
+</div>
+);
+}
+

@@ -9,9 +9,11 @@ import {
   CreateRoleAIView,
   OrgStructureView,
   EmployeesListView,
+  WizardView,
+  SettingsView,
 } from "./ui-screens";
 
-import { initialRoles, initialEmployees, Button, Input } from "./modules";
+import { initialRoles, initialEmployees, Button, Input, CandidateCard } from "./modules";
 
 // --- Auth (Login) -----------------------------------------------------------
 function LoginView({ onLogin }) {
@@ -55,6 +57,8 @@ function Shell({ current, setCurrent, children }) {
     ["Сравнение", "compare"],
     ["Структура", "org"],
     ["Создать эталон (AI)", "createRoleAI"],
+    ["Мастер настройки", "wizard"],
+    ["Настройки", "settings"],
   ];
 
   return (
@@ -102,15 +106,24 @@ export default function App() {
   const [searchResult, setSearchResult] = useState([]);
 
   function go(next) {
+  try {
     if (typeof next === "string") {
       setPayload(null);
       setView(next);
-    } else if (typeof next === "object") {
+    } else if (next && typeof next === "object") {
       setPayload(next.payload ?? null);
-      setView(next.view);
+      setView(next.view ?? "dashboard");
+    } else {
+      setPayload(null);
+      setView("dashboard");
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (e) {
+    console.error("Navigation error:", e);
+    setView("dashboard");
   }
+}
+
 
   if (!authed) return <LoginView onLogin={() => setAuthed(true)} />;
 
@@ -162,6 +175,11 @@ export default function App() {
       {view === "org" && <OrgStructureView go={go} />}
 
       {view === "employees" && <EmployeesListView go={go} />}
+
+      {view === "wizard" && <WizardView go={go} />}
+
+      {view === "settings" && <SettingsView />}
+
     </Shell>
   );
 }
