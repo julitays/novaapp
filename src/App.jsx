@@ -9,47 +9,9 @@ import {
   CreateRoleAIView,
   OrgStructureView,
   EmployeesListView,
-  CandidateCard,
-  initialRoles as rolesSeed,
 } from "./ui-screens";
 
-// --- Minimal local UI (login/header) ----------------------------------------
-const Button = ({ children, onClick, variant = "primary" }) => {
-  const base = "px-4 py-2 rounded-xl text-sm font-medium transition";
-  const styles = {
-    primary: "bg-indigo-600 text-white hover:bg-indigo-700",
-    ghost:   "bg-white dark:bg-white border border-slate-200 dark:border-slate-700 text-slate-900 hover:bg-slate-50",
-  };
-  return <button onClick={onClick} className={`${base} ${styles[variant]}`}>{children}</button>;
-};
-
-const Input = (props) => (
-  <input
-    {...props}
-    className={`w-full rounded-xl border border-slate-200 dark:border-slate-700
-                bg-white dark:bg-white text-slate-900 dark:text-slate-900
-                placeholder-slate-400 px-3 py-2 text-sm outline-none
-                focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-300 ${props.className ?? ""}`}
-  />
-);
-
-// --- Error Boundary ----------------------------------------------------------
-class ErrorBoundary extends React.Component {
-  constructor(props){ super(props); this.state = { hasError:false, error:null }; }
-  static getDerivedStateFromError(error){ return { hasError:true, error }; }
-  componentDidCatch(error, info){ console.error("[Render error]", error, info); }
-  render(){
-    if (this.state.hasError) {
-      return (
-        <div className="p-4">
-          <h2 className="text-lg font-semibold mb-2">Проблема при рендере страницы</h2>
-          <pre className="whitespace-pre-wrap text-sm text-rose-600">{String(this.state.error && this.state.error.message || this.state.error)}</pre>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
+import { initialRoles, initialEmployees, Button, Input } from "./modules";
 
 // --- Auth (Login) -----------------------------------------------------------
 function LoginView({ onLogin }) {
@@ -86,6 +48,15 @@ function Shell({ current, setCurrent, children }) {
     localStorage.setItem("theme", dark ? "dark" : "light");
   }, [dark]);
 
+  const nav = [
+    ["Дашборд", "dashboard"],
+    ["Роли", "roles"],
+    ["Сотрудники", "employees"],
+    ["Сравнение", "compare"],
+    ["Структура", "org"],
+    ["Создать эталон (AI)", "createRoleAI"],
+  ];
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 dark:text-slate-100">
       <header className="sticky top-0 z-10 bg-white/90 dark:bg-slate-800/80 backdrop-blur border-b border-slate-200 dark:border-slate-700">
@@ -95,24 +66,19 @@ function Shell({ current, setCurrent, children }) {
             <div className="font-semibold">RoleMaster</div>
           </div>
           <nav className="flex items-center gap-3 text-sm">
-            {[
-              ["Дашборд", "dashboard"],
-              ["Роли", "roles"],
-              ["Сотрудники", "employees"],
-              ["Сравнение", "compare"],
-              ["Структура", "org"],
-              ["Создать эталон (AI)", "createRoleAI"],
-            ].map(([label, view]) => (
+            {nav.map(([label, view]) => (
               <button
                 key={view}
                 onClick={() => setCurrent(view)}
-                className={`px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 ${current === view ? "bg-slate-100 dark:bg-slate-700 font-medium" : "text-slate-600 dark:text-slate-300"}`}
+                className={`px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 ${
+                  current === view ? "bg-slate-100 dark:bg-slate-700 font-medium" : "text-slate-600 dark:text-slate-300"
+                }`}
               >
                 {label}
               </button>
             ))}
             <button
-              onClick={() => setDark(d => !d)}
+              onClick={() => setDark((d) => !d)}
               className="px-3 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-sm"
               title="Тёмная тема"
             >
@@ -121,26 +87,7 @@ function Shell({ current, setCurrent, children }) {
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl px-4 py-6">
-        {children}
-      </main>
-    </div>
-  );
-}
-
-// --- Helper grid for searchResults reuse ------------------------------------
-function EmployeesListLikeGrid({ list, roles, go }) {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-      {list.map((e) => (
-        <CandidateCard
-          key={e.id}
-          emp={e}
-          roleObj={roles.find((r) => r.name === (e.readiness?.targetRole || roles[0].name))}
-          onOpen={() => go({ view: "employee", payload: e })}
-        />
-      ))}
-      {list.length === 0 && <div className="text-slate-500">Нет результатов</div>}
+      <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
     </div>
   );
 }
@@ -149,9 +96,10 @@ function EmployeesListLikeGrid({ list, roles, go }) {
 export default function App() {
   const [authed, setAuthed] = useState(false);
   const [view, setView] = useState("dashboard");
-  const [roles, setRoles] = useState(rolesSeed);
-  const [searchResult, setSearchResult] = useState([]);
+  const [roles, setRoles] = useState(initialRoles);
+  const [employees] = useState(initialEmployees);
   const [payload, setPayload] = useState(null);
+  const [searchResult, setSearchResult] = useState([]);
 
   function go(next) {
     if (typeof next === "string") {
@@ -173,8 +121,11 @@ export default function App() {
       {view === "search" && (
         <SearchView
           go={go}
-          setSearchResult={(r) => { setSearchResult(r); go("searchResults"); }}
           roles={roles}
+          setSearchResult={(r) => {
+            setSearchResult(r);
+            go("searchResults");
+          }}
         />
       )}
 
@@ -182,15 +133,23 @@ export default function App() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Результаты поиска</h2>
-            <Button variant="ghost" onClick={() => go("search")}>Изменить фильтры</Button>
+            <button
+              className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
+              onClick={() => go("search")}
+            >
+              Изменить фильтры
+            </button>
           </div>
-          <EmployeesListLikeGrid list={searchResult} roles={roles} go={go} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {searchResult.map((e) => (
+              <CandidateCard key={e.id} emp={e} onOpen={() => go({ view: "employee", payload: e })} />
+            ))}
+            {searchResult.length === 0 && <div className="text-slate-500">Нет результатов</div>}
+          </div>
         </div>
       )}
 
-      {view === "employee" && payload && (
-        <EmployeeProfileView emp={payload} go={go} roles={roles} />
-      )}
+      {view === "employee" && payload && <EmployeeProfileView emp={payload} go={go} roles={roles} />}
 
       {view === "roles" && <RolesListView roles={roles} go={go} />}
 
@@ -202,11 +161,7 @@ export default function App() {
 
       {view === "org" && <OrgStructureView go={go} />}
 
-      {view === "employees" && (
-        <ErrorBoundary>
-          <EmployeesListView go={go} />
-        </ErrorBoundary>
-      )}
+      {view === "employees" && <EmployeesListView go={go} />}
     </Shell>
   );
 }
