@@ -1,6 +1,8 @@
 // modules.jsx — общие модули проекта (данные, утилиты, UI-примитивы)
 // ВНИМАНИЕ: здесь НЕТ экранов. Только переиспользуемые части.
 
+// modules.jsx — данные, утилиты и UI-примитивы (без экранов)
+
 import React from "react";
 
 // ---------------------------------------------------------------------------
@@ -42,7 +44,6 @@ export const initialRoles = [
       "Аналитика": 3,
       "Переговоры": 4,
       "Коммуникация": 4,
-      "Тайм-менеджмент": 4,
     },
   },
   {
@@ -56,7 +57,6 @@ export const initialRoles = [
       "Аналитика": 4,
       "Переговоры": 4,
       "Лидерство": 4,
-      "Тайм-менеджмент": 4,
     },
   },
 ];
@@ -78,40 +78,10 @@ export const initialEmployees = [
       "Тайм-менеджмент": 4,
     },
     assessments: [
-            {
-              date: "2025-05-15",
-              percent: 60,
-              competencies: {
-                "Стратегическое мышление": 2,
-                "Переговоры": 2,
-                "Аналитика": 3,
-                "Коммуникация": 3,
-                "Тайм-менеджмент": 4,
-              }
-            },
-            {
-              date: "2025-06-20",
-              percent: 68,
-              competencies: {
-                "Стратегическое мышление": 1,
-                "Переговоры": 3,
-                "Аналитика": 1,
-                "Коммуникация": 4,
-                "Тайм-менеджмент": 3,
-              }
-            },
-            {
-              date: "2025-07-25",
-              percent: 72,
-              competencies: {
-                "Стратегическое мышление": 3,
-                "Переговоры": 3,
-                "Аналитика": 2,
-                "Коммуникация": 4,
-                "Тайм-менеджмент": 5,
-              }
-            }
-          ],
+      { date: "2025-05", percent: 60 },
+      { date: "2025-06", percent: 68 },
+      { date: "2025-07", percent: 72 },
+    ],
   },
   {
     id: 102,
@@ -128,40 +98,10 @@ export const initialEmployees = [
       "Коммуникация": 4,
     },
     assessments: [
-            {
-              date: "2025-05-15",
-              percent: 60,
-              competencies: {
-                "Стратегическое мышление": 2,
-                "Переговоры": 4,
-                "Аналитика": 2,
-                "Коммуникация": 2,
-                "Тайм-менеджмент": 1,
-              }
-            },
-            {
-              date: "2025-06-20",
-              percent: 68,
-              competencies: {
-                "Стратегическое мышление": 3,
-                "Переговоры": 3,
-                "Аналитика": 5,
-                "Коммуникация": 3,
-                "Тайм-менеджмент": 1,
-              }
-            },
-            {
-              date: "2025-07-25",
-              percent: 72,
-              competencies: {
-                "Стратегическое мышление": 6,
-                "Переговоры": 1,
-                "Аналитика": 2,
-                "Коммуникация": 2,
-                "Тайм-менеджмент": 4,
-              }
-            }
-          ],
+      { date: "2025-05", percent: 55 },
+      { date: "2025-06", percent: 61 },
+      { date: "2025-07", percent: 65 },
+    ],
   },
   {
     id: 103,
@@ -179,40 +119,10 @@ export const initialEmployees = [
       "Лидерство": 3,
     },
     assessments: [
-        {
-          date: "2025-05-15",
-          percent: 60,
-          competencies: {
-            "Стратегическое мышление": 2,
-            "Переговоры": 2,
-            "Аналитика": 2,
-            "Коммуникация": 3,
-            "Тайм-менеджмент": 3,
-          }
-        },
-        {
-          date: "2025-06-20",
-          percent: 68,
-          competencies: {
-            "Стратегическое мышление": 3,
-            "Переговоры": 3,
-            "Аналитика": 2,
-            "Коммуникация": 4,
-            "Тайм-менеджмент": 4,
-          }
-        },
-        {
-          date: "2025-07-25",
-          percent: 72,
-          competencies: {
-            "Стратегическое мышление": 3,
-            "Переговоры": 3,
-            "Аналитика": 2,
-            "Коммуникация": 4,
-            "Тайм-менеджмент": 4,
-          }
-        }
-      ],
+      { date: "2025-05", percent: 78 },
+      { date: "2025-06", percent: 84 },
+      { date: "2025-07", percent: 88 },
+    ],
   },
 ];
 
@@ -238,15 +148,8 @@ export function matchPercent(emp, role) {
 }
 
 export function toRadarData(roleMap, empMap) {
-  const keys = new Set([
-    ...Object.keys(roleMap || {}),
-    ...Object.keys(empMap || {}),
-  ]);
-  return Array.from(keys).map((k) => ({
-    competency: k,
-    A: roleMap?.[k] || 0,
-    B: empMap?.[k] || 0,
-  }));
+  const keys = new Set([...Object.keys(roleMap || {}), ...Object.keys(empMap || {})]);
+  return Array.from(keys).map((k) => ({ competency: k, A: roleMap?.[k] || 0, B: empMap?.[k] || 0 }));
 }
 
 // ---------------------------------------------------------------------------
@@ -256,8 +159,7 @@ export const Button = ({ children, onClick, variant = "primary" }) => {
   const base = "px-4 py-2 rounded-xl text-sm font-medium transition";
   const styles = {
     primary: "bg-indigo-600 text-white hover:bg-indigo-700",
-    ghost:
-      "bg-white dark:bg-white border border-slate-200 dark:border-slate-700 text-slate-900 hover:bg-slate-50",
+    ghost: "bg-white dark:bg-white border border-slate-200 dark:border-slate-700 text-slate-900 hover:bg-slate-50",
   };
   return (
     <button onClick={onClick} className={`${base} ${styles[variant]}`}>
@@ -269,9 +171,7 @@ export const Button = ({ children, onClick, variant = "primary" }) => {
 export const Input = (props) => (
   <input
     {...props}
-    className={`w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-white text-slate-900 dark:text-slate-900 placeholder-slate-400 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-300 ${
-      props.className ?? ""
-    }`}
+    className={`w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-white text-slate-900 dark:text-slate-900 placeholder-slate-400 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-300 ${props.className ?? ""}`}
   />
 );
 
@@ -289,16 +189,8 @@ export const Select = ({ options = [], value, onChange }) => (
   </select>
 );
 
-export const Chip = ({ children, color = "slate" }) => (
-  <span
-    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-${color}-100 text-${color}-700`}
-  >
-    {children}
-  </span>
-);
-
 // ---------------------------------------------------------------------------
-// Простая карточка кандидата
+// Карточка кандидата
 // ---------------------------------------------------------------------------
 export function CandidateCard({ emp, onOpen }) {
   return (
@@ -312,81 +204,114 @@ export function CandidateCard({ emp, onOpen }) {
     </div>
   );
 }
-// Расчёт месяцев между датами (грубо, нам хватит для EI)
-export function monthsBetween(d1, d2) {
-  const a = new Date(d1);
-  const b = new Date(d2);
-  return Math.max(0.1, (b - a) / (1000 * 60 * 60 * 24 * 30));
+/**
+ * @typedef {{name:string, target?:string, period?:string}} KPIItem
+ * @typedef {{
+ *  id:string, name:string, version:string, status:"draft"|"active"|"archived",
+ *  division:string, goal:string,
+ *  responsibilities:string[],
+ *  kpi:{ current: KPIItem[], recommended: KPIItem[] },
+ *  competencyMap: Record<string, 1|2|3|4>,
+ *  assessmentGuidelines?: {
+ *    behavioralAnchors?: Record<string, string[]>,
+ *    scales?: string,
+ *    evidenceExamples?: string[]
+ *  },
+ *  testAssignment?: {
+ *    objective:string, deliverables:string[], evaluationCriteria:string[], timeboxHours?:number
+ *  },
+ *  assessmentCenter?: {
+ *    cases?: { title:string, durationMin:number, observersRoles:string[], competenciesObserved:string[] }[],
+ *    rubrics?: string
+ *  },
+ *  tags?: string[],
+ *  meta?: Record<string, any>,
+ *  createdAt?: string, updatedAt?: string
+ * }} RoleStandard
+ */
+
+// Небольшой генератор полноценных эталонов на базе initialRoles (моки)
+function makeStandardFromInitial(r) {
+  /** @type {RoleStandard} */
+  return {
+    id: `std_${r.name.replace(/\s+/g,"_").toLowerCase()}_${(r.version||"v1.0").toLowerCase()}`,
+    name: r.name,
+    version: r.version || "v1.0",
+    status: "active",
+    division: r.name.includes("GKAM") ? "Sales / Electronics" : "Sales / FMCG",
+    goal: r.kpi || "Достичь целей по продажам/полке/NPS для категории.",
+    responsibilities: [
+      "Вести ключевые сети/регионы, обеспечивать листинг и промо",
+      "Готовить и защищать JBP, синхронизировать кросс-функции",
+      "Отслеживать P&L, управлять маржой и OOS",
+    ],
+    kpi: {
+      current: [{ name: r.kpi || "Рост продаж", target: "", period: "квартал" }],
+      recommended: [
+        { name: "Маржинальность категории", target: "↑", period: "квартал" },
+        { name: "NPS ключевых сетей", target: "+10", period: "полугодие" },
+      ],
+    },
+    competencyMap: r.competencies || {},
+    assessmentGuidelines: {
+      behavioralAnchors: {
+        "Переговоры": [
+          "Готовит позицию/BATNA; фиксирует договорённости письменно",
+          "Управляет повесткой и рамками встречи"
+        ],
+        "Стратегическое мышление": [
+          "Формулирует гипотезы роста, просчитывает сценарии/риски",
+        ],
+      },
+      scales: "Шкала 1–4 с поведенческими индикаторами для каждого уровня",
+      evidenceExamples: ["Снижение OOS на 30%", "JBP с X5 на Q3"],
+    },
+    testAssignment: {
+      objective: "Собрать JBP на 6 месяцев для сети Y",
+      deliverables: ["Презентация 10 слайдов", "Мини-модель P&L"],
+      evaluationCriteria: ["Логика гипотез", "Финансовая обоснованность", "План рисков"],
+      timeboxHours: 8,
+    },
+    assessmentCenter: {
+      cases: [
+        {
+          title: "Эскалация с категорией",
+          durationMin: 30,
+          observersRoles: ["HRBP", "Sales Director"],
+          competenciesObserved: ["Коммуникация", "Переговоры", "Лидерство"],
+        },
+      ],
+      rubrics: "Матрица Компетенции × Поведенческие индикаторы",
+    },
+    tags: [r.name],
+    meta: {},
+    createdAt: r.created || new Date().toISOString().slice(0,10),
+    updatedAt: r.created || new Date().toISOString().slice(0,10),
+  };
 }
 
-// Efficiency Index по assessments (использует percent)
-export function efficiencyIndex(assessments, monthsHorizon = 12) {
-  if (!Array.isArray(assessments) || assessments.length < 2) return 0;
-  const arr = [...assessments].sort((a,b)=> new Date(a.date) - new Date(b.date));
+// Канонический массив эталонов (моки)
+export const roleStandards = initialRoles.map(makeStandardFromInitial);
 
-  // ограничим по горизонту
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - monthsHorizon);
-  const filtered = arr.filter(a => new Date(a.date) >= cutoff);
-  const src = filtered.length >= 2 ? filtered : arr;
-
-  let segments = 0, sum = 0;
-  for (let i=1; i<src.length; i++){
-    const prev = src[i-1], cur = src[i];
-    const delta = (cur.percent ?? 0) - (prev.percent ?? 0);
-    const months = monthsBetween(prev.date, cur.date);
-    sum += delta / months;
-    segments++;
-  }
-  return Math.round((sum / Math.max(1, segments)) * 10) / 10; // округлим до 0.1
+// Утилиты импорта/экспорта JSON
+export function exportJSON(obj, filename) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
-// Quality по выбранным компетенциям (0..100)
-export function qualityByCompetencies(roleMap, currentMap, prevMap, selected) {
-  const comps = selected && selected.length ? selected : Object.keys(roleMap || {});
-  const sumNeed = comps.reduce((s,c)=> s + (roleMap?.[c] || 0), 0) || 1;
-
-  const gapNow  = comps.reduce((s,c)=> s + Math.max(0, (roleMap?.[c]||0) - (currentMap?.[c]||0)), 0);
-  const gapPrev = comps.reduce((s,c)=> s + Math.max(0, (roleMap?.[c]||0) - (prevMap?.[c]||0)), 0);
-
-  const now  = Math.round((1 - gapNow/sumNeed)  * 100);
-  const prev = Math.round((1 - gapPrev/sumNeed) * 100);
-  return { now, prev, delta: now - prev };
-}
-// matchPercent c учётом выбранных компетенций
-export function matchPercentFiltered(emp, role, selected = []) {
-  const rmap = role?.competencies || {};
-  const keys = (selected && selected.length ? selected : Object.keys(rmap));
-  if (!keys.length) return 0;
-  let sum = 0, max = 0;
-  for (const k of keys) {
-    const need = rmap[k] || 0;
-    const have = emp?.competencies?.[k] || 0;
-    sum += Math.min(have, need);
-    max += need;
-  }
-  return Math.round((sum / (max || 1)) * 100);
-}
-
-// EI для выбранных компетенций (используем поминутно оценки с competencies)
-export function efficiencyIndexFiltered(assessments = [], role, selected = [], monthsHorizon = 12) {
-  const arr = (assessments || []).filter(a => a?.competencies).sort((a,b)=> new Date(a.date) - new Date(b.date));
-  if (arr.length < 2) return 0;
-
-  const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - monthsHorizon);
-  const src = arr.filter(a => new Date(a.date) >= cutoff);
-  const data = src.length >= 2 ? src : arr;
-
-  let seg = 0, sum = 0;
-  for (let i = 1; i < data.length; i++) {
-    // считаем «частичную готовность» только по выбранным навыкам на каждый момент
-    const prevPct = matchPercentFiltered({ competencies: data[i-1].competencies }, role, selected);
-    const curPct  = matchPercentFiltered({ competencies: data[i].competencies }, role, selected);
-    const delta = curPct - prevPct;
-
-    const months = Math.max(0.1, (new Date(data[i].date) - new Date(data[i-1].date)) / (1000*60*60*24*30));
-    sum += delta / months;
-    seg++;
-  }
-  return Math.round((sum / Math.max(1, seg)) * 10) / 10;
+export function parseJSONFile(file, onOk, onErr) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!data.name || !data.version || !data.competencyMap) throw new Error("Некорректный формат: нужны name, version, competencyMap");
+      onOk?.(data);
+    } catch (e) { onErr?.(e); }
+  };
+  reader.onerror = () => onErr?.(new Error("Не удалось прочитать файл"));
+  reader.readAsText(file);
 }

@@ -1,4 +1,4 @@
-// ui-screens.jsx — только экраны. Все данные/утилиты/примитивы тянем из ./modules
+// ui-screens.jsx — экраны novaapp (полная сборка)
 
 import React, { useState } from "react";
 import {
@@ -20,14 +20,13 @@ import {
   Input,
   Select,
   CandidateCard,
-  qualityByCompetencies,
-  efficiencyIndex,
-  matchPercentFiltered, 
-  efficiencyIndexFiltered,
+  roleStandards,
+  exportJSON,
+  parseJSONFile,
 } from "./modules";
 
 // ────────────────────────────────────────────────────────────────────────────
-// Локальные экранные помощники (не дублируют modules)
+// Мелкие помощники UI и аналитики
 function computeWeakAreas(employees, roles, topN = 3) {
   const roleByName = Object.fromEntries(roles.map((r) => [r.name, r]));
   const gap = {};
@@ -91,7 +90,7 @@ function RadarTooltip({ active, payload, label }) {
   const getVal = (key) => {
     const p = payload.find((x) => x.dataKey === key);
     return p && typeof p.value === "number" ? p.value : 0;
-    };
+  };
   const a = getVal("A");
   const b = getVal("B");
   const diff = b - a;
@@ -107,568 +106,77 @@ function RadarTooltip({ active, payload, label }) {
   );
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// ЭКРАНЫ
-export function DashboardView({ go }) {
-  const employeesCount = initialEmployees.length;
-  const rolesCount = initialRoles.length;
-  const readyPct = Math.round(
-    (initialEmployees.filter((e) => (e.readiness?.percent ?? 0) >= 70).length /
-      Math.max(1, employeesCount)) * 100
-  );
-  const weakAreasData = computeWeakAreas(initialEmployees, initialRoles, 3);
-
-  const readyData = [
-    {
-      name: "Готовы (≥70%)",
-      value: initialEmployees.filter((e) => (e.readiness?.percent || 0) >= 70).length,
-    },
-    {
-      name: "Ещё развиваться",
-      value: initialEmployees.filter((e) => (e.readiness?.percent || 0) < 70).length,
-    },
-  ];
-
-  const depAvg = (dep) => {
-    const arr = initialEmployees.filter((e) => e.department === dep);
-    if (!arr.length) return 0;
-    return Math.round(arr.reduce((s, e) => s + (e.readiness?.percent || 0), 0) / arr.length);
+function StatBadge({ label, value, tone = "slate" }) {
+  const tones = {
+    slate: "bg-slate-100 text-slate-700",
+    indigo: "bg-indigo-100 text-indigo-700",
+    green: "bg-green-100 text-green-700",
+    rose: "bg-rose-100 text-rose-700",
   };
-  const depData = [
-    { dep: "FMCG", val: depAvg("FMCG") },
-    { dep: "Electronics", val: depAvg("Electronics") },
-    { dep: "HR", val: depAvg("HR") },
-  ];
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Дашборд HR</h1>
-        <div className="flex gap-2">
-          <Button onClick={() => go("createRoleAI")}>Создать эталон</Button>
-          <Button variant="ghost" onClick={() => go("search")}>Найти кандидатов</Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard title="Сотрудников" value={employeesCount} />
-        <StatCard title="Ролей" value={rolesCount} />
-        <StatCard title="Готовы к переходу" value={`${readyPct}%`} />
-        <WeakAreasCard data={weakAreasData} />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-          <div className="font-medium mb-2">Готовность к переходу</div>
-          <div className="h-56">
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={readyData} innerRadius={50} outerRadius={70} paddingAngle={2} dataKey="value">
-                  <Cell fill="#10b981" />
-                  <Cell fill="#e11d48" />
-                </Pie>
-                <Legend wrapperStyle={{ color: "currentColor" }} />
-                <Tooltip
-                  contentStyle={{ background: "#0b1220", border: "1px solid #475569", color: "#e5e7eb", borderRadius: 12 }}
-                  itemStyle={{ color: "#e5e7eb" }}
-                  labelStyle={{ color: "#cbd5e1" }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-          <div className="font-medium mb-2">Средняя готовность по подразделениям</div>
-          <div className="h-56">
-            <ResponsiveContainer>
-              <BarChart data={depData}>
-                <XAxis dataKey="dep" tick={{ fill: "currentColor" }} />
-                <YAxis tick={{ fill: "currentColor" }} />
-                <Tooltip
-                  contentStyle={{ background: "#0b1220", border: "1px solid #475569", color: "#e5e7eb", borderRadius: 12 }}
-                  itemStyle={{ color: "#e5e7eb" }}
-                  labelStyle={{ color: "#cbd5e1" }}
-                />
-                <Bar dataKey="val" fill="#6366f1" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-          <div className="font-medium mb-2">Быстрые действия</div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={() => go("search")}>Найти кандидатов</Button>
-            <Button variant="ghost" onClick={() => go("createRoleAI")}>Создать эталон</Button>
-            <Button variant="ghost" onClick={() => go("org")}>Пробелы в структуре</Button>
-            <Button variant="ghost" onClick={() => go("employees")}>Сотрудники</Button>
-          </div>
-        </div>
-      </div>
+    <div className={`rounded-xl px-3 py-2 text-sm ${tones[tone] || tones.slate}`}>
+      <div className="text-xs opacity-80">{label}</div>
+      <div className="font-semibold">{value}</div>
     </div>
   );
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-export function SearchView({ go, setSearchResult, roles = initialRoles }) {
-  const [targetRole, setTargetRole] = useState(roles[0]?.name ?? "");
-  function onFind() {
-    const role = roles.find((r) => r.name === targetRole) || roles[0];
-    const res = initialEmployees.map((e) => ({ ...e, score: matchPercent(e, role) }));
-    setSearchResult(res);
+function Badge({ children, tone = "slate" }) {
+  const tones = {
+    slate: "bg-slate-100 text-slate-700",
+    green: "bg-green-100 text-green-700",
+    rose: "bg-rose-100 text-rose-700",
+    gray:  "bg-gray-100 text-gray-700",
+    indigo:"bg-indigo-100 text-indigo-700",
+  };
+  return <span className={`inline-block text-xs px-2 py-0.5 rounded ${tones[tone] || tones.slate}`}>{children}</span>;
+}
+
+function FeedbackCard({ title, text, tone = "slate" }) {
+  const border = {
+    slate: "border-slate-200 dark:border-slate-800",
+    amber: "border-amber-200 dark:border-amber-600",
+    indigo: "border-indigo-200 dark:border-indigo-700",
+  }[tone];
+  const bg = {
+    slate: "bg-white dark:bg-slate-900",
+    amber: "bg-amber-50 dark:bg-amber-900/20",
+    indigo: "bg-indigo-50 dark:bg-indigo-900/20",
+  }[tone];
+
+  return (
+    <div className={`rounded-2xl border ${border} ${bg} p-4`}>
+      <div className="font-medium mb-2">{title}</div>
+      <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">{text}</p>
+    </div>
+  );
+}
+
+// Моки отзывов
+function mockClientReview(emp) {
+  if (emp?.name?.includes("Иван")) {
+    return "Клиент отмечает стабильную коммуникацию, повышение скорости реакции на запросы. Предложены 2 инициативы по мерч-выкладке, эффект — +3% к полке.";
   }
-  return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Поиск кандидатов</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div>
-          <label className="text-sm">Целевая должность</label>
-          <Select options={roles.map((r) => r.name)} value={targetRole} onChange={setTargetRole} />
-        </div>
-        <div className="flex items-end">
-          <Button onClick={onFind}>Найти</Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-export function EmployeeProfileView({ emp, roles }) {
-  const role = roles.find((r) => r.name === emp.readiness?.targetRole) || roles[0];
-
-  // --- НОВОЕ: фильтр + привязка метрик ---
-  const [selectedComps, setSelectedComps] = React.useState(
-    () => Object.keys(role.competencies || {}).slice(0, 3)
-  );
-  const [bindToFilter, setBindToFilter] = React.useState(false);
-
-  // История для графиков по навыкам (если нет competencies в части оценок — это ок)
-  const hist = (emp.assessments || [])
-    .map(a => ({ date: a.date, ...(a.competencies || {}) }))
-    .sort((a,b)=> new Date(a.date) - new Date(b.date));
-
-  // Готовность: глобальная vs по фильтру
-  const percentGlobal = matchPercent(emp, role);
-  const percentScoped = matchPercentFiltered(emp, role, selectedComps);
-  const percentToShow = bindToFilter ? percentScoped : percentGlobal;
-
-  // EI: глобальный vs по фильтру (если нет competencies — фильтрованный EI будет 0)
-  const eiGlobal = efficiencyIndex(emp.assessments || []);
-  const eiScoped = efficiencyIndexFiltered(emp.assessments || [], role, selectedComps);
-  const eiToShow = bindToFilter ? eiScoped : eiGlobal;
-
-  // Quality (текущий/предыдущий) по выбранным компам
-  const last = emp.assessments?.[emp.assessments.length-1] || {};
-  const prev = emp.assessments?.[emp.assessments.length-2] || {};
-  const q = qualityByCompetencies(
-    role.competencies,
-    last.competencies || emp.competencies || {},
-    prev.competencies || emp.competencies || {},
-    selectedComps
-  );
-
-  // Данные для радара (как было)
-  const data = toRadarData(role.competencies, emp.competencies);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">{emp.name}</h2>
-
-        {/* Тоггл привязки метрик к фильтру */}
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-slate-500">Привязать метрики к фильтру</label>
-          <input type="checkbox" checked={bindToFilter} onChange={(e)=>setBindToFilter(e.target.checked)} />
-        </div>
-      </div>
-
-      {/* Карточки-индикаторы */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-          <div className="text-sm text-slate-500">Готовность к роли</div>
-          <div className="text-3xl font-semibold mt-1">{percentToShow}%</div>
-          <div className="text-xs text-slate-500 mt-1">
-            {bindToFilter ? "по выбранным компетенциям" : `цель: ${role.name}`}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-          <div className="text-sm text-slate-500">Индекс эффективности (EI)</div>
-          <div className="text-3xl font-semibold mt-1">{eiToShow}%/мес</div>
-          <div className="text-xs mt-1">
-            {eiToShow >= 5 ? "быстрое развитие" : eiToShow >= 1 ? "нормальный темп" : "требуется стратегия"}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-          <div className="text-sm text-slate-500">Quality выбранных навыков</div>
-          <div className="text-3xl font-semibold mt-1">{q.now}%</div>
-          <div className={`text-xs mt-1 ${q.delta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-            {q.delta >= 0 ? `+${q.delta}%` : `${q.delta}%`} к предыдущей оценке
-          </div>
-        </div>
-      </div>
-
-      {/* Блок с карточкой инфо + радар (оставь как у тебя было) */}
-      {/* ... (твоя существующая разметка) ... */}
-
-      {/* Фильтр компетенций + график динамики */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="font-medium">Динамика по компетенциям</div>
-          <div className="flex gap-2 flex-wrap">
-            {Object.keys(role.competencies || {}).map(c => {
-              const active = selectedComps.includes(c);
-              return (
-                <button
-                  key={c}
-                  onClick={() =>
-                    setSelectedComps(prev => prev.includes(c) ? prev.filter(x=>x!==c) : [...prev, c])
-                  }
-                  className={`text-xs px-2 py-1 rounded-full border ${
-                    active
-                      ? "bg-indigo-600 text-white border-indigo-600"
-                      : "bg-white dark:bg-slate-800 border-slate-300"
-                  }`}
-                >
-                  {c}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="w-full h-64">
-          <ResponsiveContainer>
-            <LineChart data={hist}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis domain={[0, 4]} />
-              <Tooltip />
-              {selectedComps.map((c) => (
-                <Line key={c} type="monotone" dataKey={c} />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* сравнение с предыдущей оценкой — дельты по выбранным */}
-        {last.competencies && prev.competencies && (
-          <div className="text-sm text-slate-600">
-            {selectedComps.map(c => {
-              const cur = (last.competencies?.[c] ?? 0);
-              const pr  = (prev.competencies?.[c] ?? 0);
-              const d   = cur - pr;
-              return (
-                <span key={c} className="mr-3">
-                  {c}: <b>{cur}</b> ({d >= 0 ? `+${d}` : d})
-                </span>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-export function RolesListView({ roles = initialRoles, go }) {
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Эталоны ролей</h2>
-        <Button onClick={() => go("createRoleAI")}>Создать новую роль</Button>
-      </div>
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800">
-            <tr>
-              <th className="text-left p-3">Название роли</th>
-              <th className="text-left p-3">Версия</th>
-              <th className="text-left p-3">Компетенций</th>
-              <th className="text-left p-3">KPI</th>
-              <th className="text-left p-3">Дата создания</th>
-            </tr>
-          </thead>
-          <tbody>
-            {roles.map((r) => (
-              <tr
-                key={r.id}
-                className="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer"
-                onClick={() => go({ view: "role", payload: r })}
-              >
-                <td className="p-3">{r.name}</td>
-                <td className="p-3">{r.version}</td>
-                <td className="p-3">{Object.keys(r.competencies).length}</td>
-                <td className="p-3">{r.kpi}</td>
-                <td className="p-3">{r.createdAt}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-export function RoleProfileView({ role, go }) {
-  return (
-    <div className="space-y-4">
-      <div className="flex items_center justify-between">
-        <h2 className="text-xl font-semibold">
-          {role.name} ({role.version})
-        </h2>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => go("createRoleAI")}>
-            Редактировать эталон
-          </Button>
-          <Button onClick={() => go("compare")}>Сравнить с сотрудником</Button>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-          <div className="font-medium mb-3">Компетенции</div>
-          <ul className="text-sm space-y-1">
-            {ALL_COMPETENCIES.map((c) => (
-              <li key={c} className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 py-1">
-                <span>{c}</span>
-                <span className="font-medium">{role.competencies[c] ?? 0}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-          <div className="font-medium mb-2">KPI</div>
-          <div className="text-sm">{role.kpi}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-export function CompareView({ roles }) {
-  const [empId, setEmpId] = useState(initialEmployees[0].id);
-  const [roleName, setRoleName] = useState(roles[0].name);
-
-  const emp = initialEmployees.find((e) => e.id === +empId || e.id === empId) || initialEmployees[0];
-  const role = roles.find((r) => r.name === roleName) || roles[0];
-  const percent = matchPercent(emp, role);
-  const data = toRadarData(role.competencies, emp.competencies);
-
-  return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-semibold">Сравнение</h2>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div>
-          <label className="text-sm">Сотрудник</label>
-          <select
-            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-white text-slate-900 dark:text-slate-900 px-3 py-2 text-sm"
-            value={empId}
-            onChange={(e) => setEmpId(e.target.value)}
-          >
-            {initialEmployees.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name} — {e.title}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-sm">Роль</label>
-          <Select value={roleName} onChange={setRoleName} options={roles.map((r) => r.name)} />
-        </div>
-        <div className="flex items-end">
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm">
-            Соответствие: <span className="font-semibold">{percent}%</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="w-full h-80 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-        <ResponsiveContainer>
-          <RadarChart data={data} outerRadius={120} margin={{ right: 140 }}>
-            <PolarGrid />
-            <PolarAngleAxis dataKey="competency" tick={{ fontSize: 12, fill: "currentColor" }} />
-            <PolarRadiusAxis angle={30} domain={[0, 4]} tick={{ fontSize: 11, fill: "currentColor" }} />
-            <Radar name="Эталон" dataKey="A" stroke="#6366f1" fill="#6366f1" fillOpacity={0.25} />
-            <Radar name="Сотр." dataKey="B" stroke="#10b981" fill="#10b981" fillOpacity={0.25} />
-            <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ paddingLeft: 16, color: "currentColor" }} />
-            <Tooltip />
-          </RadarChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-export function CreateRoleAIView({ roles, setRoles }) {
-  const [messages, setMessages] = useState([
-    { role: "system", text: "Я — AI-методолог. Опиши роль, и я соберу эталон компетенций и KPI." },
-  ]);
-  const [draftName, setDraftName] = useState("Новая роль");
-  const [model, setModel] = useState("Встроенный AI");
-  const [draft, setDraft] = useState({
-    name: "",
-    version: "v1.0",
-    kpi: "",
-    competencies: Object.fromEntries(ALL_COMPETENCIES.map((c) => [c, 0])),
-  });
-
-  function send(msg) {
-    if (!msg.trim()) return;
-    const next = [...messages, { role: "user", text: msg }];
-    const auto = {
-      name: draftName || "Новая роль",
-      version: "v1.0",
-      kpi: "KPI по результатам продаж и NPS",
-      competencies: {
-        "Стратегическое мышление": 3,
-        "Переговоры": 4,
-        "Аналитика": 3,
-        "Коммуникация": 4,
-        "Лидерство": 3,
-        "Финансовое мышление": 3,
-        "Тайм-менеджмент": 3,
-        "Проектное управление": 3,
-      },
-    };
-    setDraft(auto);
-    setMessages([
-      ...next,
-      { role: "assistant", text: `Сформировал эталон для «${auto.name}». Модель: ${model}. Версия: ${auto.version}.` },
-    ]);
+  if (emp?.name?.includes("Анна")) {
+    return "Позитивная динамика: аккуратное ведение операционки, но просит больше инициативности в планировании промо-активностей.";
   }
-
-  function saveToDb() {
-    const newRole = {
-      id: Date.now(),
-      name: draft.name || draftName,
-      version: draft.version,
-      kpi: draft.kpi || "KPI уточняются",
-      createdAt: new Date().toISOString().slice(0, 10),
-      competencies: draft.competencies,
-    };
-    setRoles((prev) => [...prev, newRole]);
-    alert("Эталон сохранён в базе ролей");
+  return "Сильные переговоры с сетями, чёткая фиксация договорённостей. Рекомендуют расширить аналитику по категориям.";
+}
+function mockManagerFeedback(emp) {
+  if (emp?.name?.includes("Иван")) {
+    return "Хороший прогресс за квартал. Усилить стратегический блок (горизонт 2–3 квартала) и практику кейсов по аналитике.";
   }
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 flex flex-col">
-        <div className="flex items-center justify между mb-3">
-          <div className="font-medium">Создание эталона — Chat AI</div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm">Источник AI</span>
-            <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-white text-slate-900 dark:text-slate-900 px-2 py-1 text-sm"
-            >
-              <option>Встроенный AI</option>
-              <option>Мой GPTs</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-auto space-y-2">
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
-                m.role === "user"
-                  ? "bg-indigo-50 ml-auto"
-                  : m.role === "assistant"
-                  ? "bg-slate-50 dark:bg-slate-800/60"
-                  : "bg-white border border-slate-200"
-              }`}
-            >
-              {m.text}
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-3 flex items-center gap-2">
-          <Input
-            placeholder="Опиши роль, акценты, KPI… (Enter — отправить)"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") send(e.currentTarget.value);
-            }}
-          />
-          <Button onClick={() => send("Создай роль KAM с акцентом на переговоры и аналитику")}>Отправить</Button>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="font-medium">Предпросмотр эталона</div>
-          <div className="flex gap-2">
-            <Input value={draftName} onChange={(e) => setDraftName(e.target.value)} className="w-48" />
-            <Button variant="ghost" onClick={() => setDraft({ ...draft, name: draftName })}>Применить имя</Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div>
-            <div className="text-sm mb-1">Версия</div>
-            <Input value={draft.version} onChange={(e) => setDraft({ ...draft, version: e.target.value })} />
-          </div>
-          <div>
-            <div className="text-sm mb-1">KPI</div>
-            <Input value={draft.kpi} onChange={(e) => setDraft({ ...draft, kpi: e.target.value })} />
-          </div>
-        </div>
-
-        <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800">
-              <tr>
-                <th className="text-left p-3">Компетенция</th>
-                <th className="text-left p-3">Уровень (0–4)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ALL_COMPETENCIES.map((c) => (
-                <tr key={c} className="border-t border-slate-100 dark:border-slate-700">
-                  <td className="p-3">{c}</td>
-                  <td className="p-3">
-                    <input
-                      type="range"
-                      min={0}
-                      max={4}
-                      value={draft.competencies[c] ?? 0}
-                      onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          competencies: { ...draft.competencies, [c]: +e.target.value },
-                        })
-                      }
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mt-3 flex gap-2">
-          <Button onClick={saveToDb}>Сохранить в БД</Button>
-          <Button variant="ghost" onClick={() => alert("Ручное редактирование (демо)")}>Редактировать вручную</Button>
-        </div>
-      </div>
-    </div>
-  );
+  if (emp?.name?.includes("Анна")) {
+    return "Хорошая дисциплина. Сфокусироваться на переговорах и работе с возражениями. Рекомендую внутреннее наставничество на 1 спринт.";
+  }
+  return "Готов брать расширенную ответственность. Предложить GKAM при сохранении текущих показателей.";
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// 1) Структура компании
 export function OrgStructureView({ go }) {
   const [open, setOpen] = useState({ gkam: true, lnd: true });
+
   function Node({ label, color = "slate", badge, children, onClick }) {
     const colorMap = {
       green: "bg-green-100 text-green-700",
@@ -693,16 +201,22 @@ export function OrgStructureView({ go }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Структура компании</h2>
-        <div className="text-sm text-slate-500">Иерархия: CEO → GKAM → KAM → RM / CEO → Руководитель обучения</div>
+        <div className="flex items-center gap-2">
+          <div className="text-sm text-slate-500">
+            Иерархия: CEO → GKAM → KAM → RM / CEO → Руководитель обучения
+          </div>
+          <Button variant="ghost" onClick={() => go("employees")}>Перейти к сотрудникам</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="space-y-4">
           <Node label="CEO" badge="1" color="slate">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* GKAM FMCG */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="font-medium">GKAM FMCG</div>
@@ -724,6 +238,7 @@ export function OrgStructureView({ go }) {
                 </Button>
               </div>
 
+              {/* GKAM Electronics */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="font-medium">GKAM Electronics</div>
@@ -732,11 +247,12 @@ export function OrgStructureView({ go }) {
                 {open.gkam && (
                   <div className="rounded-xl border border-rose-200 dark:border-rose-700 p-3 text-sm bg-rose-50 dark:bg-rose-900/30">
                     <div className="mb-1">⚠ Срочно ищем таланты на GKAM Electronics</div>
-                    <Button onClick={() => go({ view: "search" })}>Перейти к поиску</Button>
+                    <Button onClick={() => go("roles")}>Перейти к эталонам</Button>
                   </div>
                 )}
               </div>
 
+              {/* Руководитель обучения */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="font-medium">Руководитель отдела обучения</div>
@@ -790,9 +306,822 @@ export function OrgStructureView({ go }) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// 2) Эталон ролей (список) + Создание с AI + Импорт/Экспорт + Деталка
+export function RolesHubView({ go, roles = initialRoles }) {
+  const [standards, setStandards] = useState(() => {
+    const base = Array.isArray(roles) && roles.length
+      ? roles.map(r => ({
+          ...roleStandards[0],
+          id: `tmp_${r.name}_${r.version}`.replace(/\s+/g,"_"),
+          name: r.name, version: r.version || "v1.0", competencyMap: r.competencies || {},
+          division: r.name.includes("GKAM") ? "Sales / Electronics" : "Sales / FMCG",
+          kpi: { current: [{ name: r.kpi || "Рост продаж" }], recommended: roleStandards[0].kpi.recommended },
+          createdAt: r.created || new Date().toISOString().slice(0,10),
+          updatedAt: r.created || new Date().toISOString().slice(0,10),
+          status: "active",
+        }))
+      : roleStandards;
+    const key = (x) => `${x.name}__${x.version}`;
+    const map = new Map(base.map(x => [key(x), x]));
+    return Array.from(map.values());
+  });
+  const [mode, setMode] = useState("list"); // 'list' | 'create'
+
+  function onImport(file) {
+    parseJSONFile(
+      file,
+      (data) => {
+        const standard = {
+          id: data.id || `std_${data.name}_${data.version}`.replace(/\s+/g,"_").toLowerCase(),
+          status: data.status || "active",
+          division: data.division || "—",
+          goal: data.goal || "",
+          responsibilities: data.responsibilities || [],
+          kpi: data.kpi || { current: [], recommended: [] },
+          competencyMap: data.competencyMap || {},
+          assessmentGuidelines: data.assessmentGuidelines || {},
+          testAssignment: data.testAssignment || {},
+          assessmentCenter: data.assessmentCenter || {},
+          tags: data.tags || [],
+          meta: data.meta || {},
+          name: data.name, version: data.version,
+          createdAt: data.createdAt || new Date().toISOString().slice(0,10),
+          updatedAt: new Date().toISOString().slice(0,10),
+        };
+        setStandards(prev => {
+          const k = (x) => `${x.name}__${x.version}`;
+          const map = new Map(prev.map(x => [k(x), x]));
+          map.set(k(standard), standard);
+          return Array.from(map.values());
+        });
+        alert(`Импортирован эталон: ${standard.name} (${standard.version})`);
+      },
+      (err) => alert("Ошибка импорта: " + err.message)
+    );
+  }
+
+  function exportOne(std) {
+    exportJSON(std, `${std.name.replace(/\s+/g,"_")}_${std.version}.json`);
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Эталон ролей</h2>
+        <div className="flex items-center gap-2">
+          <label className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 cursor-pointer text-sm">
+            Импорт JSON
+            <input
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && onImport(e.target.files[0])}
+            />
+          </label>
+          <Button onClick={() => setMode("create")}>Создать с помощью AI</Button>
+          {mode === "create" && (
+            <Button variant="ghost" onClick={() => setMode("list")}>Назад к списку</Button>
+          )}
+        </div>
+      </div>
+
+      {mode === "list" && (
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800">
+              <tr>
+                <th className="text-left p-3">Роль</th>
+                <th className="text-left p-3">Подразделение</th>
+                <th className="text-left p-3">Статус</th>
+                <th className="text-left p-3">Версия</th>
+                <th className="text-left p-3">Компетенций</th>
+                <th className="text-left p-3">KPI (текущие)</th>
+                <th className="text-left p-3 w-[140px]">Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              {standards.map((std) => (
+                <tr
+                  key={std.id}
+                  className="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                >
+                  <td className="p-3">
+                    <button className="hover:underline" onClick={() => go({ view: "role", payload: std })}>
+                      {std.name}
+                    </button>
+                  </td>
+                  <td className="p-3">{std.division || "—"}</td>
+                  <td className="p-3">
+                    <Badge tone={std.status === "active" ? "green" : std.status === "draft" ? "slate" : "gray"}>
+                      {std.status}
+                    </Badge>
+                  </td>
+                  <td className="p-3">{std.version}</td>
+                  <td className="p-3">{Object.keys(std.competencyMap || {}).length}</td>
+                  <td className="p-3">
+                    {(std.kpi?.current || []).slice(0,2).map(k => k.name).join(", ") || "—"}
+                  </td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" onClick={() => go({ view: "role", payload: std })}>Открыть</Button>
+                      <Button variant="ghost" onClick={() => exportOne(std)}>Экспорт</Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {standards.length === 0 && (
+                <tr><td className="p-3 text-slate-500" colSpan={7}>Пока пусто — импортируй JSON или создай с помощью AI</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {mode === "create" && (
+        <CreateRoleAIViewEmbedded
+          onSave={(std) => {
+            // std — должен быть в каноническом формате
+            const k = (x) => `${x.name}__${x.version}`;
+            setStandards(prev => {
+              const map = new Map(prev.map(x => [k(x), x]));
+              map.set(k(std), std);
+              return Array.from(map.values());
+            });
+            setMode("list");
+            go({ view: "role", payload: std });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Детальный экран эталона роли
+// ────────────────────────────────────────────────────────────────────────────
+// Карточка эталона роли — единая страница без вкладок
+export function RoleDetailsView({ role, go }) {
+  // якоря секций для мини-навигации справа
+  const sections = [
+    { id: "goal", label: "Цель роли" },
+    { id: "resp", label: "Функции и задачи" },
+    { id: "kpi", label: "KPI" },
+    { id: "comp", label: "Карта компетенций" },
+    { id: "assess", label: "Оценочные рекомендации" },
+    { id: "test", label: "Тестовое задание" },
+    { id: "ac", label: "Ассессмент-центр" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Шапка */}
+      <div className="sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-white/70 dark:supports-[backdrop-filter]:bg-slate-900/70 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 py-3">
+        <div className="flex items-center justify-between">
+          <div className="min-w-0">
+            <div className="text-2xl font-semibold truncate">{role.name}</div>
+            <div className="text-slate-500 dark:text-slate-400 text-sm">
+              Подразделение: <b>{role.division || "—"}</b> · Версия: <b>{role.version}</b> ·{" "}
+              Статус:{" "}
+              <Badge tone={role.status === "active" ? "green" : role.status === "draft" ? "slate" : "gray"}>
+                {role.status || "—"}
+              </Badge>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="ghost"
+              onClick={() =>
+                exportJSON(role, `${role.name.replace(/\s+/g, "_")}_${role.version}.json`)
+              }
+            >
+              Экспорт JSON
+            </Button>
+            <Button variant="ghost" onClick={() => go("roles")}>К списку</Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Контент с правой колонкой-навигацией */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
+        {/* левая колонка — всё содержимое карточки */}
+        <div className="space-y-6">
+          {/* Цель роли */}
+          <section id="goal" className="scroll-mt-20 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+            <div className="text-sm text-slate-500 mb-1">Цель роли</div>
+            <p className="text-slate-900 dark:text-slate-100 leading-relaxed">
+              {role.goal || "—"}
+            </p>
+            {!!(role.tags && role.tags.length) && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {role.tags.map((t) => (
+                  <Badge key={t}>{t}</Badge>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Функции и задачи */}
+          <section id="resp" className="scroll-mt-20 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+            <div className="text-base font-medium mb-3">Основные функции и задачи</div>
+            {Array.isArray(role.responsibilities) && role.responsibilities.length > 0 ? (
+              <ul className="text-sm list-disc list-inside space-y-1">
+                {role.responsibilities.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-sm text-slate-500">—</div>
+            )}
+          </section>
+
+          {/* KPI (две таблицы рядом) */}
+          <section id="kpi" className="scroll-mt-20 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <KPITable title="Текущие KPI" data={role.kpi?.current || []} />
+            <KPITable title="Рекомендуемые KPI" data={role.kpi?.recommended || []} />
+          </section>
+
+          {/* Карта компетенций */}
+          <section id="comp" className="scroll-mt-20 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+            <div className="text-base font-medium mb-3">Карта компетенций (уровни 1–4)</div>
+            <CompetencyMatrix competencyMap={role.competencyMap || {}} />
+            <div className="text-xs text-slate-500 mt-2">
+              Уровень в колонке «Эталон» — требуемый для роли. Колонки 1–4 — поведенческие индикаторы по уровням (заполняются методологом).
+            </div>
+          </section>
+
+          {/* Рекомендации по оценке */}
+          <section id="assess" className="scroll-mt-20 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+            <div className="text-base font-medium mb-3">Рекомендации по оценке</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <div className="text-sm text-slate-500 mb-1">Шкалы</div>
+                <div className="text-sm">{role.assessmentGuidelines?.scales || "—"}</div>
+              </div>
+              <div className="md:col-span-2">
+                <div className="text-sm text-slate-500 mb-1">Примеры подтверждений (evidence)</div>
+                {Array.isArray(role.assessmentGuidelines?.evidenceExamples) &&
+                role.assessmentGuidelines.evidenceExamples.length ? (
+                  <ul className="text-sm list-disc list-inside">
+                    {role.assessmentGuidelines.evidenceExamples.map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-sm text-slate-500">—</div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="text-sm text-slate-500 mb-1">Поведенческие индикаторы</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {Object.entries(role.assessmentGuidelines?.behavioralAnchors || {}).map(
+                  ([comp, list]) => (
+                    <div key={comp} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                      <div className="font-medium mb-1">{comp}</div>
+                      <ul className="text-sm list-disc list-inside">
+                        {(list || []).map((x, i) => (
+                          <li key={i}>{x}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                )}
+                {Object.keys(role.assessmentGuidelines?.behavioralAnchors || {}).length === 0 && (
+                  <div className="text-sm text-slate-500">—</div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Тестовое задание */}
+          <section id="test" className="scroll-mt-20 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+            <div className="text-base font-medium mb-3">Тестовое задание</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <div className="text-slate-500 mb-1">Цель</div>
+                <div>{role.testAssignment?.objective || "—"}</div>
+              </div>
+              <div>
+                <div className="text-slate-500 mb-1">Таймбокс (часы)</div>
+                <div>{role.testAssignment?.timeboxHours ?? "—"}</div>
+              </div>
+              <div>
+                <div className="text-slate-500 mb-1">Ожидаемые артефакты</div>
+                {Array.isArray(role.testAssignment?.deliverables) &&
+                role.testAssignment.deliverables.length ? (
+                  <ul className="list-disc list-inside">{role.testAssignment.deliverables.map((d, i) => <li key={i}>{d}</li>)}</ul>
+                ) : (
+                  <div>—</div>
+                )}
+              </div>
+              <div>
+                <div className="text-slate-500 mb-1">Критерии оценки</div>
+                {Array.isArray(role.testAssignment?.evaluationCriteria) &&
+                role.testAssignment.evaluationCriteria.length ? (
+                  <ul className="list-disc list-inside">{role.testAssignment.evaluationCriteria.map((d, i) => <li key={i}>{d}</li>)}</ul>
+                ) : (
+                  <div>—</div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* Ассессмент-центр */}
+          <section id="ac" className="scroll-mt-20 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+            <div className="text-base font-medium mb-3">Ассессмент-центр</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div className="md:col-span-2">
+                <div className="text-slate-500 mb-1">Кейсы</div>
+                {Array.isArray(role.assessmentCenter?.cases) && role.assessmentCenter.cases.length ? (
+                  <ul className="list-disc list-inside space-y-1">
+                    {role.assessmentCenter.cases.map((c, i) => (
+                      <li key={i}>
+                        <b>{c.title}</b> — {c.durationMin} мин; Наблюдатели:{" "}
+                        {(c.observersRoles || []).join(", ") || "—"}; Компетенции:{" "}
+                        {(c.competenciesObserved || []).join(", ") || "—"}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div>—</div>
+                )}
+              </div>
+              <div>
+                <div className="text-slate-500 mb-1">Рубрики</div>
+                <div>{role.assessmentCenter?.rubrics || "—"}</div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* правая колонка — мини-навигация по секциям (якоря) */}
+        <aside className="hidden lg:block">
+          <div className="sticky top-24 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+            <div className="text-sm font-medium mb-2">Навигация по карточке</div>
+            <div className="space-y-1">
+              {sections.map((s) => (
+                <a
+                  key={s.id}
+                  href={`#${s.id}`}
+                  className="block text-sm text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400"
+                >
+                  {s.label}
+                </a>
+              ))}
+            </div>
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <div className="text-xs text-slate-500">Обновлено:</div>
+              <div className="text-sm">{role.updatedAt || "—"}</div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+
+function KPITable({ title, data, tone="slate" }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+      <div className="font-medium mb-2">{title}</div>
+      <table className="w-full text-sm">
+        <thead className="bg-slate-50 dark:bg-slate-800">
+          <tr>
+            <th className="text-left p-3">Метрика</th>
+            <th className="text-left p-3">Цель</th>
+            <th className="text-left p-3">Период</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(data || []).map((k, i) => (
+            <tr key={i} className="border-t border-slate-100 dark:border-slate-700">
+              <td className="p-3">{k.name || "—"}</td>
+              <td className="p-3">{k.target || "—"}</td>
+              <td className="p-3">{k.period || "—"}</td>
+            </tr>
+          ))}
+          {(data || []).length === 0 && (
+            <tr><td className="p-3 text-slate-500" colSpan={3}>—</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CompetencyMatrix({ competencyMap }) {
+  const rows = Object.entries(competencyMap || {});
+  return (
+    <div className="overflow-auto rounded-xl border border-slate-200 dark:border-slate-800">
+      <table className="w-full text-sm">
+        <thead className="bg-slate-50 dark:bg-slate-800">
+          <tr>
+            <th className="text-left p-3 w-[40%]">Компетенция</th>
+            <th className="text-left p-3">Уровень (эталон)</th>
+            <th className="text-left p-3">1</th>
+            <th className="text-left p-3">2</th>
+            <th className="text-left p-3">3</th>
+            <th className="text-left p-3">4</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([name, lvl]) => (
+            <tr key={name} className="border-t border-slate-100 dark:border-slate-700">
+              <td className="p-3">{name}</td>
+              <td className="p-3">
+                <Badge tone="indigo">{lvl}</Badge>
+              </td>
+              <td className="p-3">{lvl >= 1 ? "• поведенческие индикаторы (ур.1)" : "—"}</td>
+              <td className="p-3">{lvl >= 2 ? "• индикаторы (ур.2)" : "—"}</td>
+              <td className="p-3">{lvl >= 3 ? "• индикаторы (ур.3)" : "—"}</td>
+              <td className="p-3">{lvl >= 4 ? "• индикаторы (ур.4)" : "—"}</td>
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr><td className="p-3 text-slate-500" colSpan={6}>—</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Встроенный AI-конструктор роли (упрощённый, но сохраняет канонический формат)
+function CreateRoleAIViewEmbedded({ onSave }) {
+  const [messages, setMessages] = useState([
+    { role: "system", text: "Я — AI-методолог. Опиши роль, и я соберу эталон компетенций и KPI." },
+  ]);
+  const [draftName, setDraftName] = useState("Новая роль");
+  const [draft, setDraft] = useState({
+    name: "Новая роль",
+    version: "v1.0",
+    status: "draft",
+    division: "—",
+    goal: "",
+    responsibilities: [],
+    kpi: { current: [], recommended: [] },
+    competencyMap: Object.fromEntries(ALL_COMPETENCIES.map((c) => [c, 0])),
+    assessmentGuidelines: {},
+    testAssignment: {},
+    assessmentCenter: {},
+    tags: [],
+    meta: {},
+  });
+
+  function send(msg) {
+    if (!msg.trim()) return;
+    // Демогенерация (подставляем разумные значения)
+    const auto = {
+      ...draft,
+      name: draftName || "Новая роль",
+      version: "v1.0",
+      status: "draft",
+      goal: "Достичь бизнес-целей подразделения, масштабировать продажи и клиентский успех.",
+      responsibilities: [
+        "Планирование и защита JBP",
+        "Управление промо и листингом",
+        "Синхронизация маркетинга и логистики",
+      ],
+      kpi: {
+        current: [
+          { name: "Рост sell-out", target: "+8% QoQ", period: "квартал" },
+          { name: "Доля полки в ТОП-5 сетях", target: "≥95%", period: "месяц" },
+        ],
+        recommended: [
+          { name: "Маржинальность категории", target: "≥Х%", period: "квартал" },
+          { name: "NPS сетей", target: "+10", period: "полугодие" },
+        ],
+      },
+      competencyMap: {
+        "Стратегическое мышление": 3,
+        "Переговоры": 4,
+        "Аналитика": 3,
+        "Коммуникация": 4,
+        "Лидерство": 3,
+        "Финансовое мышление": 3,
+        "Тайм-менеджмент": 3,
+        "Проектное управление": 3,
+      },
+      assessmentGuidelines: {
+        scales: "Шкала 1–4 с поведенческими индикаторами на каждый уровень.",
+        behavioralAnchors: {
+          "Переговоры": [
+            "Готовит позицию/BATNA; фиксирует договорённости письменно",
+            "Управляет повесткой и рамками встречи",
+          ],
+          "Стратегическое мышление": [
+            "Формулирует гипотезы роста, просчитывает сценарии/риски",
+          ],
+        },
+        evidenceExamples: ["Снижение OOS на 30%", "JBP с X5 на Q3"],
+      },
+      testAssignment: {
+        objective: "Собрать JBP на 6 месяцев для сети Y",
+        deliverables: ["Презентация 10 слайдов", "Мини-модель P&L"],
+        evaluationCriteria: ["Логика гипотез", "Финансовая обоснованность", "План рисков"],
+        timeboxHours: 8,
+      },
+      assessmentCenter: {
+        cases: [
+          {
+            title: "Эскалация с категорией",
+            durationMin: 30,
+            observersRoles: ["HRBP", "Sales Director"],
+            competenciesObserved: ["Коммуникация", "Переговоры", "Лидерство"],
+          },
+        ],
+        rubrics: "Матрица Компетенции × Поведенческие индикаторы",
+      },
+      createdAt: new Date().toISOString().slice(0,10),
+      updatedAt: new Date().toISOString().slice(0,10),
+    };
+    setDraft(auto);
+    setMessages((m) => [
+      ...m,
+      { role: "user", text: msg },
+      { role: "assistant", text: `Сформировал эталон для «${auto.name}». Версия: ${auto.version}.` },
+    ]);
+  }
+
+  function saveToRegistry() {
+    const std = { ...draft, name: draftName || draft.name };
+    onSave?.(std);
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Чат с AI */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 flex flex-col">
+        <div className="flex items-center justify-between mb-3">
+          <div className="font-medium">Создание эталона — Chat AI</div>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Embedded</span>
+        </div>
+
+        <div className="flex-1 overflow-auto space-y-2">
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+                m.role === "user"
+                  ? "bg-indigo-50 ml-auto"
+                  : "bg-slate-50 dark:bg-slate-800/60"
+              }`}
+            >
+              {m.text}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-3 flex items-center gap-2">
+          <Input
+            placeholder="Опиши роль, акценты, KPI… (Enter — отправить)"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") send(e.currentTarget.value);
+            }}
+          />
+          <Button onClick={() => send("Создай роль KAM с акцентом на переговоры и аналитику")}>
+            Отправить
+          </Button>
+        </div>
+      </div>
+
+      {/* Предпросмотр эталона */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="font-medium">Предпросмотр эталона</div>
+          <div className="flex gap-2">
+            <Input value={draftName} onChange={(e) => setDraftName(e.target.value)} className="w-48" />
+            <Button variant="ghost" onClick={() => setDraft({ ...draft, name: draftName })}>
+              Применить имя
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div>
+            <div className="text-sm mb-1">Версия</div>
+            <Input value={draft.version} onChange={(e) => setDraft({ ...draft, version: e.target.value })} />
+          </div>
+          <div>
+            <div className="text-sm mb-1">Подразделение</div>
+            <Input value={draft.division} onChange={(e) => setDraft({ ...draft, division: e.target.value })} />
+          </div>
+          <div className="lg:col-span-2">
+            <div className="text-sm mb-1">Цель</div>
+            <Input value={draft.goal} onChange={(e) => setDraft({ ...draft, goal: e.target.value })} />
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800">
+              <tr>
+                <th className="text-left p-3">Компетенция</th>
+                <th className="text-left p-3">Уровень (0–4)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ALL_COMPETENCIES.map((c) => (
+                <tr key={c} className="border-t border-slate-100 dark:border-slate-700">
+                  <td className="p-3">{c}</td>
+                  <td className="p-3">
+                    <input
+                      type="range"
+                      min={0}
+                      max={4}
+                      value={draft.competencyMap[c] ?? 0}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          competencyMap: { ...draft.competencyMap, [c]: +e.target.value },
+                        })
+                      }
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-3 flex gap-2">
+          <Button onClick={saveToRegistry}>Сохранить в реестр</Button>
+          <Button variant="ghost" onClick={() => alert("Ручное редактирование (демо)")}>
+            Редактировать вручную
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 3) Развитие — радар + динамика
+export function DevelopmentView({ roles }) {
+  const [empId, setEmpId] = useState(initialEmployees[0].id);
+  const [roleName, setRoleName] = useState(roles[0].name);
+
+  const emp = initialEmployees.find((e) => e.id === +empId || e.id === empId) || initialEmployees[0];
+  const role = roles.find((r) => r.name === roleName) || roles[0];
+  const percent = matchPercent(emp, role);
+  const data = toRadarData(role.competencies, emp.competencies);
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold">Развитие</h2>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label className="text-sm">Сотрудник</label>
+          <select
+            className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-white text-slate-900 dark:text-slate-900 px-3 py-2 text-sm"
+            value={empId}
+            onChange={(e) => setEmpId(e.target.value)}
+          >
+            {initialEmployees.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name} — {e.title}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-sm">Роль</label>
+          <Select value={roleName} onChange={setRoleName} options={roles.map((r) => r.name)} />
+        </div>
+        <StatCard title="Соответствие" value={`${percent}%`} />
+      </div>
+
+      <div className="w-full h-80 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+        <ResponsiveContainer>
+          <RadarChart data={data} outerRadius={120} margin={{ right: 140 }}>
+            <PolarGrid />
+            <PolarAngleAxis dataKey="competency" tick={{ fontSize: 12, fill: "currentColor" }} />
+            <PolarRadiusAxis angle={30} domain={[0, 4]} tick={{ fontSize: 11, fill: "currentColor" }} />
+            <Radar name="Эталон" dataKey="A" stroke="#6366f1" fill="#6366f1" fillOpacity={0.25} />
+            <Radar name="Сотр." dataKey="B" stroke="#10b981" fill="#10b981" fillOpacity={0.25} />
+            <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ paddingLeft: 16, color: "currentColor" }} />
+            <Tooltip content={<RadarTooltip />} />
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div>
+        <div className="font-medium mb-2">Динамика готовности</div>
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={emp.assessments ?? []}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis domain={[0, 100]} />
+              <Tooltip />
+              <Line type="monotone" dataKey="percent" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 4) Управление кадровым резервом
+export function SuccessionView() {
+  const data = [
+    { role: "GKAM Electronics", reserve: 0 },
+    { role: "KAM", reserve: 2 },
+    { role: "RM", reserve: 3 },
+  ];
+  const readyData = [
+    { name: "Готовы (≥70%)", value: initialEmployees.filter(e => (e.readiness?.percent || 0) >= 70).length },
+    { name: "Ещё развиваться", value: initialEmployees.filter(e => (e.readiness?.percent || 0) < 70).length },
+  ];
+  const weakAreasData = computeWeakAreas(initialEmployees, initialRoles, 3);
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold">Управление кадровым резервом</h2>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Барчарт по резерву */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <div className="font-medium mb-2">Резерв по ключевым ролям</div>
+          <div className="h-56">
+            <ResponsiveContainer>
+              <BarChart data={data}>
+                <XAxis dataKey="role" tick={{ fill: "currentColor" }} />
+                <YAxis allowDecimals={false} tick={{ fill: "currentColor" }} />
+                <Tooltip />
+                <Bar dataKey="reserve" fill="#6366f1" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Пирог готовности */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <div className="font-medium mb-2">Готовность к переходу</div>
+          <div className="h-56">
+            <ResponsiveContainer>
+              <PieChart>
+                <Pie data={readyData} innerRadius={50} outerRadius={70} paddingAngle={2} dataKey="value">
+                  <Cell fill="#10b981" />
+                  <Cell fill="#e11d48" />
+                </Pie>
+                <Legend wrapperStyle={{ color: "currentColor" }} />
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Слабые зоны */}
+        <WeakAreasCard data={weakAreasData} />
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 5) DEMO
+export function DemoView() {
+  return (
+    <div className="space-y-2">
+      <h2 className="text-xl font-semibold">DEMO</h2>
+      <p className="text-slate-600 dark:text-slate-300">
+        Песочница для демонстрации сценариев, заглушки интеграций и A/B вариантов UI.
+      </p>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 6) Настройки
+export function SettingsView() {
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-semibold">Настройки</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <div className="text-sm mb-1">Бренд</div>
+          <Input defaultValue="novaapp" />
+        </div>
+        <div>
+          <div className="text-sm mb-1">Тема</div>
+          <Select options={["Светлая", "Тёмная", "Системная"]} value="Системная" onChange={() => {}} />
+        </div>
+      </div>
+      <Button variant="ghost" onClick={() => alert("Сохранено (демо)")}>Сохранить</Button>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 7) Сотрудники — список карточек (переход только из «Структуры»)
 export function EmployeesListView({ go }) {
-  const [q, setQ] = useState("");
-  const [roleFilter, setRoleFilter] = useState("Все");
+  const [q, setQ] = React.useState("");
+  const [roleFilter, setRoleFilter] = React.useState("Все");
 
   const list = initialEmployees
     .filter((e) => roleFilter === "Все" || e.title === roleFilter)
@@ -805,192 +1134,314 @@ export function EmployeesListView({ go }) {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Сотрудники</h2>
         <div className="flex items-center gap-2">
-          <Input placeholder="Поиск: имя/роль/регион…" value={q} onChange={(e) => setQ(e.target.value)} className="w-64" />
-          <Select value={roleFilter} onChange={setRoleFilter} options={["Все", "TM", "RM", "KAM", "Руководитель отдела обучения"]} />
+          <Input
+            placeholder="Поиск: имя/роль/регион…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="w-64"
+          />
+          <Select
+            value={roleFilter}
+            onChange={setRoleFilter}
+            options={["Все", "TM", "RM", "KAM", "Руководитель отдела обучения"]}
+          />
           <Button variant="ghost" onClick={() => alert("Экспорт CSV (демо)")}>Экспорт CSV</Button>
           <Button onClick={() => alert("Добавление сотрудника (демо)")}>Добавить сотрудника</Button>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800">
-            <tr>
-              <th className="text-left p-3">ФИО</th>
-              <th className="text-left p-3">Должность</th>
-              <th className="text-left p-3">Последняя оценка</th>
-              <th className="text-left p-3">% совпадения (цель)</th>
-              <th className="text-left p-3">Дата обновления</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((e) => {
-              const role = initialRoles.find((r) => r.name === e.readiness?.targetRole) || initialRoles[0];
-              const pct = matchPercent(e, role);
-              return (
-                <tr
-                  key={e.id}
-                  className="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer"
-                  onClick={() => go({ view: "employee", payload: e })}
-                >
-                  <td className="p-3">{e.name}</td>
-                  <td className="p-3">{e.title}</td>
-                  <td className="p-3">{e.lastAssessment}</td>
-                  <td className="p-3">{pct}% ({e.readiness?.targetRole || "—"})</td>
-                  <td className="p-3">{e.lastAssessment}</td>
-                </tr>
-              );
-            })}
-            {list.length === 0 && (
-              <tr>
-                <td colSpan={5} className="p-4 text-slate-500">Пусто по заданным условиям</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        {list.map((e) => (
+          <CandidateCard key={e.id} emp={e} onOpen={() => go({ view: "employee", payload: e })} />
+        ))}
+        {list.length === 0 && <div className="text-slate-500">Пусто по заданным условиям</div>}
       </div>
     </div>
   );
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// 8) Профиль сотрудника (ВСЕГДА по текущей роли) + PDF/CSV
+export function EmployeeProfileView({ emp }) {
+  const byName = Object.fromEntries(initialRoles.map(r => [r.name, r]));
+  const currentRole = byName[emp?.title] || initialRoles[0];
 
+  const readinessCurrent = matchPercent(emp, currentRole);
+  const assessments = emp?.assessments ?? [];
+  const last = assessments[assessments.length - 1];
+  const prev = assessments[assessments.length - 2];
+  const delta = last && prev ? last.percent - prev.percent : 0;
+  const passedAssessment = assessments.length > 0;
 
-export function WizardView({ go }){
-const [step, setStep] = useState(1);
-const next = () => setStep(s => Math.min(4, s+1));
-const prev = () => setStep(s => Math.max(1, s-1));
+  const radarData = toRadarData(currentRole.competencies, emp.competencies);
+  const bio =
+    emp?.bio ||
+    "Краткая биография: 5 лет в FMCG, сфера — федеральные сети и региональные дистрибьюторы. Сильные стороны: коммуникация, дисциплина, операционная точность.";
 
+  const [openClient, setOpenClient] = React.useState(true);
+  const [openManager, setOpenManager] = React.useState(true);
 
-return (
-<div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-<div className="md:col-span-3 space-y-2">
-{[1,2,3,4].map(n=> (
-<div key={n} className={`rounded-xl px-3 py-2 text-sm border ${step===n?"bg-indigo-50 border-indigo-200 font-medium":"bg-white border-slate-200"}`}>Шаг {n}</div>
-))}
-</div>
-<div className="md:col-span-9 space-y-4">
-{step===1 && (
-<div className="rounded-2xl border border-slate-200 p-4 bg-white dark:bg-slate-900">
-<h3 className="font-semibold mb-2">Импорт данных</h3>
-<p className="text-sm text-slate-600 mb-3">Перетащи CSV/Excel или используй демо-данные.</p>
-<div className="rounded-xl border border-dashed border-slate-300 p-6 text-center">
-Drag & Drop CSV/Excel
-</div>
-<div className="mt-3 flex gap-2 flex-wrap">
-<Button variant="ghost" onClick={()=>alert("Импорт из Huntflow (демо)")}>Импорт из Huntflow</Button>
-<Button variant="ghost" onClick={()=>alert("Импорт из Skillaz (демо)")}>Импорт из Skillaz</Button>
-<Button variant="ghost" onClick={()=>alert("Импорт из HURMA (демо)")}>Импорт из HURMA</Button>
-<Button onClick={()=>alert("Загрузили демо-данные")}>Использовать демо-данные</Button>
-</div>
-</div>
-)}
-{step===2 && (
-<div className="rounded-2xl border border-slate-200 p-4 bg-white dark:bg-slate-900">
-<h3 className="font-semibold mb-2">Эталоны ролей</h3>
-<p className="text-sm text-slate-600 mb-3">Проверь, всё ли ок в эталонах. Можно создать новый через AI.</p>
-<Button onClick={()=>go("createRoleAI")}>Создать эталон через AI</Button>
-</div>
-)}
-{step===3 && (
-<div className="rounded-2xl border border-slate-200 p-4 bg-white dark:bg-slate-900">
-<h3 className="font-semibold mb-2">Сотрудники</h3>
-<p className="text-sm text-slate-600 mb-3">Проверь загруженные профили и готовность к целевым ролям.</p>
-<Button onClick={()=>go("employees")}>Открыть список сотрудников</Button>
-</div>
-)}
-{step===4 && (
-<div className="rounded-2xl border border-slate-200 p-4 bg-white dark:bg-slate-900">
-<h3 className="font-semibold mb-2">Готово</h3>
-<p className="text-sm text-slate-600 mb-3">Можно перейти к дашборду и поиску кандидатов.</p>
-<div className="flex gap-2">
-<Button onClick={()=>go("dashboard")}>На дашборд</Button>
-<Button variant="ghost" onClick={()=>go("search")}>Найти кандидатов</Button>
-</div>
-</div>
-)}
+  const rows = Object.keys(currentRole.competencies || {}).map((k) => {
+    const need = currentRole.competencies[k] ?? 0;
+    const have = emp.competencies?.[k] ?? 0;
+    return {
+      competency: k,
+      standardHint: standardHints[k] || "—",
+      have,
+      need,
+      indicator: have >= need ? "+ дорос" : "− не дорос",
+    };
+  });
 
+  // Экспорт CSV
+  function exportCompetenciesCSV() {
+    const header = ["Компетенция","Описание эталона","Цифра сотрудника","Цифра эталона","Индикатор"];
+    const lines = [header]
+      .concat(rows.map(r => [
+        r.competency,
+        r.standardHint,
+        String(r.have),
+        String(r.need),
+        r.indicator
+      ]));
+    const csv = lines.map(line =>
+      line.map(cell => {
+        const s = String(cell ?? "");
+        if (/[",\n]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
+        return s;
+      }).join(",")
+    ).join("\n");
 
-<div className="flex items-center justify-between">
-<Button variant="ghost" onClick={prev} disabled={step===1}>Назад</Button>
-<div className="text-sm text-slate-500">Шаг {step} из 4</div>
-<Button onClick={next}>{step===4?"Завершить":"Далее"}</Button>
-</div>
-</div>
-</div>
-);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${emp.name.replace(/\s+/g,"_")}_competencies.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Печатный ИПР → print (можно сохранить как PDF)
+  function generateIPRPDF() {
+    const win = window.open("", "_blank", "noopener,noreferrer");
+    if (!win) return alert("Поп-ап заблокирован. Разреши всплывающие окна для сайта.");
+    const style = `
+      <style>
+        body{font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:#0f172a; margin:24px;}
+        h1{font-size:20px; margin:0 0 8px;}
+        h2{font-size:16px; margin:16px 0 8px;}
+        .muted{color:#475569; font-size:12px}
+        table{width:100%; border-collapse:collapse; margin-top:8px;}
+        th,td{border:1px solid #e2e8f0; padding:8px; font-size:12px; vertical-align:top;}
+        th{background:#f1f5f9; text-align:left;}
+        .badge{display:inline-block; padding:2px 6px; border-radius:6px; font-size:11px;}
+        .green{background:#dcfce7; color:#166534;}
+        .rose{background:#ffe4e6; color:#9f1239;}
+        .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+        .box{border:1px solid #e2e8f0; border-radius:12px; padding:12px;}
+        .mb8{margin-bottom:8px;}
+      </style>
+    `;
+    const tableRows = rows.map(r => `
+      <tr>
+        <td><b>${r.competency}</b><br><span class="muted">${r.standardHint}</span></td>
+        <td>${r.have}</td>
+        <td>${r.need}</td>
+        <td><span class="badge ${r.indicator.startsWith('+')?'green':'rose'}">${r.indicator}</span></td>
+      </tr>
+    `).join("");
+
+    win.document.write(`
+      <html><head><meta charset="utf-8" />${style}</head><body>
+        <h1>ИПР — ${emp.name}</h1>
+        <div class="muted">Текущая роль: <b>${emp.title}</b> · Отдел: ${emp.department} · Регион: ${emp.region}</div>
+
+        <div class="grid">
+          <div class="box">
+            <h2>Итоги оценки</h2>
+            <div class="mb8 muted">Соответствие текущей роли: <b>${readinessCurrent}%</b></div>
+            <div class="muted">Последняя оценка: <b>${emp.lastAssessment || "—"}</b></div>
+            ${assessments.length ? `<div class="muted">Последний %: <b>${assessments[assessments.length-1].percent}%</b></div>` : ""}
+            ${assessments.length>1 ? `<div class="muted">Предыдущий %: <b>${assessments[assessments.length-2].percent}%</b></div>` : ""}
+            <div class="muted">Динамика: <b>${delta>0?`+${delta}%`: `${delta}%`}</b></div>
+          </div>
+          <div class="box">
+            <h2>Краткая биография</h2>
+            <div class="muted">${bio}</div>
+          </div>
+        </div>
+
+        <h2>Сопоставление по компетенциям (текущая роль)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Эталон (описание)</th>
+              <th>Цифра сотрудника</th>
+              <th>Цифра эталона</th>
+              <th>Индикатор</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+
+        <script>window.onload = () => setTimeout(()=>window.print(), 100);</script>
+      </body></html>
+    `);
+    win.document.close();
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Шапка + кнопки действий */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+        <div className="flex flex-col gap-3">
+          <div className="text-2xl font-semibold">{emp?.name}</div>
+          <div className="text-slate-500 dark:text-slate-400 text-sm">
+            Роль: <b>{emp?.title}</b> · Отдел: {emp?.department} · Регион: {emp?.region}
+          </div>
+          <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">{bio}</p>
+
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <StatBadge label="Соответствие текущей роли" value={`${readinessCurrent}%`} tone="green" />
+              <StatBadge label="Последняя оценка" value={emp?.lastAssessment || "—"} tone="slate" />
+              <StatBadge label="Есть ассессменты" value={passedAssessment ? "Да" : "Нет"} tone={passedAssessment ? "indigo" : "slate"} />
+              <StatBadge label="Δ к прошлой оценке" value={delta === 0 ? "0" : (delta > 0 ? `+${delta}` : `${delta}`)} tone={delta >= 0 ? "green" : "rose"} />
+            </div>
+
+            {/* Кнопки действий */}
+            <div className="flex items-center gap-2">
+              <Button onClick={generateIPRPDF}>Сгенерировать ИПР (PDF)</Button>
+              <Button variant="ghost" onClick={exportCompetenciesCSV}>Экспорт компетенций (CSV)</Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Верхняя строка: слева — радар (текущая роль), справа — панель с оценками */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <div className="font-medium mb-2">Соответствие компетенций текущей роли: {currentRole.name}</div>
+          <div className="flex items-center gap-4 text-xs mb-2">
+            <span className="inline-flex items-center gap-2">
+              <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#6366f1" }}></span>
+              Эталон (текущая роль)
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className="inline-block w-3 h-3 rounded-sm" style={{ background: "#10b981" }}></span>
+              Сотрудник
+            </span>
+          </div>
+          <div className="w-full h-80">
+            <ResponsiveContainer>
+              <RadarChart data={radarData} outerRadius={120} margin={{ right: 16, left: 0, top: 8, bottom: 8 }}>
+                <PolarGrid />
+                <PolarAngleAxis dataKey="competency" tick={{ fontSize: 12, fill: "currentColor" }} />
+                <PolarRadiusAxis angle={30} domain={[0, 4]} tick={{ fontSize: 11, fill: "currentColor" }} />
+                <Radar name="Эталон" dataKey="A" stroke="#6366f1" fill="#6366f1" fillOpacity={0.25} />
+                <Radar name="Сотр." dataKey="B" stroke="#10b981" fill="#10b981" fillOpacity={0.25} />
+                <Tooltip />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <div className="font-medium mb-2">Оценки и ассессмент</div>
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center justify-between">
+              <div className="text-slate-600 dark:text-slate-300">Статус ассессмента</div>
+              <Badge tone={passedAssessment ? "green" : "slate"}>
+                {passedAssessment ? "Проходил(а)" : "Нет данных"}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="text-slate-600 dark:text-slate-300">Последняя дата оценки</div>
+              <div className="font-medium">{emp?.lastAssessment || "—"}</div>
+            </div>
+            {last && (
+              <div className="flex items-center justify-between">
+                <div className="text-slate-600 dark:text-slate-300">Последний %</div>
+                <div className="font-medium">{last.percent}%</div>
+              </div>
+            )}
+            {prev && (
+              <div className="flex items-center justify-between">
+                <div className="text-slate-600 dark:text-slate-300">Предыдущий %</div>
+                <div className="font-medium">{prev.percent}%</div>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <div className="text-slate-600 dark:text-slate-300">Динамика к прошлому</div>
+              <div className={`font-medium ${delta >= 0 ? "text-green-600" : "text-rose-600"}`}>
+                {delta > 0 ? `+${delta}%` : `${delta}%`}
+              </div>
+            </div>
+            <div className="pt-2">
+              <Button variant="ghost" onClick={() => alert("Скачать полный отчёт оценки (PDF) — демо")}>
+                Скачать отчёт (PDF)
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Отзывы */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <FeedbackCard title="Отзыв клиента (бизнес-ревью)" text={mockClientReview(emp)} tone="amber" />
+        <FeedbackCard title="Оценка руководителя (по итогам оценки)" text={mockManagerFeedback(emp)} tone="indigo" />
+      </div>
+
+      {/* Таблица внизу */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+        <div className="p-4 font-medium">Сопоставление по компетенциям (текущая роль)</div>
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800">
+            <tr>
+              <th className="text-left p-3 w-[40%]">Эталон (описание)</th>
+              <th className="text-left p-3 w-[20%]">Цифра сотрудника</th>
+              <th className="text-left p-3 w-[20%]">Цифра эталона</th>
+              <th className="text-left p-3 w-[20%]">Индикатор</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.competency} className="border-t border-slate-100 dark:border-slate-700">
+                <td className="p-3">
+                  <div className="font-medium">{r.competency}</div>
+                  <div className="text-slate-500 dark:text-slate-400 text-xs mt-1">{r.standardHint}</div>
+                </td>
+                <td className="p-3">{r.have}</td>
+                <td className="p-3">{r.need}</td>
+                <td className="p-3">
+                  <Badge tone={r.indicator.startsWith("+") ? "green" : "rose"}>
+                    {r.indicator}
+                  </Badge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
+          <Button onClick={generateIPRPDF}>Сгенерировать ИПР (PDF)</Button>
+          <Button variant="ghost" onClick={exportCompetenciesCSV}>Экспорт компетенций (CSV)</Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-
-export function SettingsView(){
-const [tab, setTab] = useState("access");
-const Access = () => (
-<div className="rounded-2xl border border-slate-200 p-4 bg-white dark:bg-slate-900">
-<h3 className="font-semibold mb-3">Роли и доступы</h3>
-<table className="w-full text-sm">
-<thead className="bg-slate-50"><tr><th className="p-2 text-left">Роль</th><th className="p-2 text-left">Права</th><th className="p-2"></th></tr></thead>
-<tbody>
-<tr className="border-t">
-<td className="p-2">Интервьюер</td>
-<td className="p-2">Без зарплат, без личных данных, только фидбек</td>
-<td className="p-2"><Button variant="ghost" onClick={()=>alert("Редактирование (демо)")}>Редактировать</Button></td>
-</tr>
-<tr className="border-t">
-<td className="p-2">HRBP</td>
-<td className="p-2">Всё по своей вертикали</td>
-<td className="p-2"><Button variant="ghost">Редактировать</Button></td>
-</tr>
-</tbody>
-</table>
-</div>
-);
-const Integrations = () => (
-<div className="rounded-2xl border border-slate-200 p-4 bg-white dark:bg-slate-900 space-y-3">
-<h3 className="font-semibold">Интеграции</h3>
-<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-{[
-{name:"Gmail", status:"OK"},
-{name:"Outlook", status:"DELAY 3m"},
-{name:"hh.ru", status:"ERROR"},
-{name:"Calendar", status:"OK"},
-].map(i=> (
-<div key={i.name} className="rounded-xl border p-3 flex items-center justify-between">
-<div>{i.name}</div>
-<div className={`text-xs px-2 py-0.5 rounded-full ${i.status==="OK"?"bg-green-100 text-green-700":i.status.startsWith("DELAY")?"bg-amber-100 text-amber-700":"bg-red-100 text-red-700"}`}>{i.status}</div>
-</div>
-))}
-</div>
-<Button onClick={()=>alert("Пересинхронизировать (демо)")}>Пересинхронизация</Button>
-</div>
-);
-const Workflows = () => (
-<div className="rounded-2xl border border-slate-200 p-4 bg-white dark:bg-slate-900">
-<div className="flex items-center justify-between mb-3">
-<h3 className="font-semibold">Workflows</h3>
-<Button onClick={()=>alert("Конструктор правил (демо)")}>+ Создать правило</Button>
-</div>
-<div className="space-y-2">
-<div className="rounded-xl border p-3">
-IF <b>Готовность ≥ 70%</b> THEN <b>Предложить повышение</b>
-</div>
-<div className="rounded-xl border p-3">
-IF <b>Падение компетенции &gt; 2</b> THEN <b>Назначить микро‑курс</b>
-</div>
-</div>
-</div>
-);
-
-
-return (
-<div className="space-y-4">
-<div className="flex items-center gap-2">
-<Button variant={tab==="access"?"primary":"ghost"} onClick={()=>setTab("access")}>Доступы</Button>
-<Button variant={tab==="integrations"?"primary":"ghost"} onClick={()=>setTab("integrations")}>Интеграции</Button>
-<Button variant={tab==="workflows"?"primary":"ghost"} onClick={()=>setTab("workflows")}>Workflows</Button>
-</div>
-{tab==="access" && <Access/>}
-{tab==="integrations" && <Integrations/>}
-{tab==="workflows" && <Workflows/>}
-</div>
-);
-}
-
+// подсказки по компетенциям
+const standardHints = {
+  "Стратегическое мышление": "Формулирует цели, просчитывает сценарии и риски, выбирает приоритеты.",
+  "Переговоры": "Управляет повесткой, использует BATNA, оформляет договоренности письменно.",
+  "Аналитика": "Работает с данными, отчётами, трендами; принимает решения из цифр.",
+  "Коммуникация": "Кратко, по делу, адаптация к собеседнику, фиксация решений.",
+  "Лидерство": "Делегирует, даёт обратную связь, держит фокус на результате.",
+  "Финансовое мышление": "Понимает маржинальность, ROI инициатив, P&L команды.",
+  "Тайм-менеджмент": "Планирует, расставляет приоритеты, встречается по повестке.",
+  "Проектное управление": "Декомпозиция, контроль рисков и сроков, управление изменениями.",
+};
