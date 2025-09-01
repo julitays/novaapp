@@ -1,13 +1,4 @@
-// modules.jsx — общие модули проекта (данные, утилиты, UI-примитивы)
-// ВНИМАНИЕ: здесь НЕТ экранов. Только переиспользуемые части.
-
-// modules.jsx — данные, утилиты и UI-примитивы (без экранов)
-
-import React from "react";
-
-// ---------------------------------------------------------------------------
-// Seed-данные (моки)
-// ---------------------------------------------------------------------------
+// src/lib/modules.js
 export const ALL_COMPETENCIES = [
   "Стратегическое мышление",
   "Переговоры",
@@ -19,18 +10,20 @@ export const ALL_COMPETENCIES = [
   "Проектное управление",
 ];
 
+// ——— Роли
 export const initialRoles = [
   {
     id: 1,
     name: "RM",
     version: "v1.0",
     kpi: "Рост продаж 10%",
-    createdAt: "2025-08-01",
+    created: "2025-08-01",
     competencies: {
       "Стратегическое мышление": 3,
       "Переговоры": 2,
       "Коммуникация": 4,
       "Тайм-менеджмент": 4,
+      "Проектное управление": 3,
     },
   },
   {
@@ -38,12 +31,13 @@ export const initialRoles = [
     name: "KAM",
     version: "v1.0",
     kpi: "Рост продаж 15%",
-    createdAt: "2025-08-02",
+    created: "2025-08-02",
     competencies: {
       "Стратегическое мышление": 4,
       "Аналитика": 3,
       "Переговоры": 4,
       "Коммуникация": 4,
+      "Финансовое мышление": 3,
     },
   },
   {
@@ -51,219 +45,87 @@ export const initialRoles = [
     name: "GKAM (Electronics)",
     version: "v1.0",
     kpi: "Доля полки +20%, NPS ключевых сетей +10",
-    createdAt: "2025-08-10",
+    created: "2025-08-10",
     competencies: {
       "Стратегическое мышление": 4,
       "Аналитика": 4,
       "Переговоры": 4,
       "Лидерство": 4,
+      "Финансовое мышление": 3,
     },
   },
-];
-
-export const initialEmployees = [
   {
-    id: 101,
-    name: "Иван Иванов",
-    title: "RM",
-    department: "FMCG",
-    region: "Москва",
-    lastAssessment: "2025-07-20",
-    readiness: { targetRole: "KAM", percent: 72 },
+    id: 4,
+    name: "Руководитель отдела обучения",
+    version: "v1.0",
+    kpi: "Снижение time-to-productivity -20%",
+    created: "2025-08-15",
     competencies: {
-      "Стратегическое мышление": 3,
-      "Переговоры": 3,
-      "Аналитика": 2,
+      "Лидерство": 4,
       "Коммуникация": 4,
-      "Тайм-менеджмент": 4,
-    },
-    assessments: [
-      { date: "2025-05", percent: 60 },
-      { date: "2025-06", percent: 68 },
-      { date: "2025-07", percent: 72 },
-    ],
-  },
-  {
-    id: 102,
-    name: "Анна Петрова",
-    title: "RM",
-    department: "FMCG",
-    region: "СПб",
-    lastAssessment: "2025-07-18",
-    readiness: { targetRole: "KAM", percent: 65 },
-    competencies: {
+      "Проектное управление": 4,
       "Стратегическое мышление": 3,
-      "Переговоры": 2,
       "Аналитика": 3,
-      "Коммуникация": 4,
     },
-    assessments: [
-      { date: "2025-05", percent: 55 },
-      { date: "2025-06", percent: 61 },
-      { date: "2025-07", percent: 65 },
-    ],
   },
   {
-    id: 103,
-    name: "Дмитрий Кузнецов",
-    title: "KAM",
-    department: "Electronics",
-    region: "Москва",
-    lastAssessment: "2025-07-22",
-    readiness: { targetRole: "GKAM (Electronics)", percent: 88 },
+    id: 5,
+    name: "CEO",
+    version: "v1.0",
+    kpi: "EBITDA +15%",
+    created: "2025-08-20",
     competencies: {
       "Стратегическое мышление": 4,
-      "Переговоры": 4,
-      "Аналитика": 4,
+      "Лидерство": 4,
+      "Финансовое мышление": 4,
       "Коммуникация": 4,
-      "Лидерство": 3,
+      "Аналитика": 4,
     },
-    assessments: [
-      { date: "2025-05", percent: 78 },
-      { date: "2025-06", percent: 84 },
-      { date: "2025-07", percent: 88 },
-    ],
   },
 ];
 
-// ---------------------------------------------------------------------------
-// Утилиты
-// ---------------------------------------------------------------------------
-export function roleToMap(role) {
-  return { ...(role?.competencies || {}) };
-}
-
-export function matchPercent(emp, role) {
-  const rmap = roleToMap(role);
-  const keys = Object.keys(rmap);
-  if (!keys.length) return 0;
-  let sum = 0, max = 0;
-  for (const k of keys) {
-    const need = rmap[k] || 0;
-    const have = emp?.competencies?.[k] || 0;
-    sum += Math.min(have, need);
-    max += need;
-  }
-  return Math.round((sum / (max || 1)) * 100);
-}
-
-export function toRadarData(roleMap, empMap) {
-  const keys = new Set([...Object.keys(roleMap || {}), ...Object.keys(empMap || {})]);
-  return Array.from(keys).map((k) => ({ competency: k, A: roleMap?.[k] || 0, B: empMap?.[k] || 0 }));
-}
-
-// ---------------------------------------------------------------------------
-// UI-примитивы
-// ---------------------------------------------------------------------------
-export const Button = ({ children, onClick, variant = "primary" }) => {
-  const base = "px-4 py-2 rounded-xl text-sm font-medium transition";
-  const styles = {
-    primary: "bg-indigo-600 text-white hover:bg-indigo-700",
-    ghost: "bg-white dark:bg-white border border-slate-200 dark:border-slate-700 text-slate-900 hover:bg-slate-50",
-  };
-  return (
-    <button onClick={onClick} className={`${base} ${styles[variant]}`}>
-      {children}
-    </button>
-  );
-};
-
-export const Input = (props) => (
-  <input
-    {...props}
-    className={`w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-white text-slate-900 dark:text-slate-900 placeholder-slate-400 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-300 ${props.className ?? ""}`}
-  />
-);
-
-export const Select = ({ options = [], value, onChange }) => (
-  <select
-    value={value}
-    onChange={(e) => onChange?.(e.target.value)}
-    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-300"
-  >
-    {options.map((o) => (
-      <option key={String(o)} value={o}>
-        {o}
-      </option>
-    ))}
-  </select>
-);
-
-// ---------------------------------------------------------------------------
-// Карточка кандидата
-// ---------------------------------------------------------------------------
-export function CandidateCard({ emp, onOpen }) {
-  return (
-    <div
-      onClick={onOpen}
-      className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow hover:shadow-md transition cursor-pointer bg-white dark:bg-slate-800"
-    >
-      <div className="font-semibold">{emp.name}</div>
-      <div className="text-sm text-slate-500 dark:text-slate-400">{emp.title}</div>
-      <div className="mt-2">Готовность: {emp.readiness?.percent ?? 0}%</div>
-    </div>
-  );
-}
-/**
- * @typedef {{name:string, target?:string, period?:string}} KPIItem
- * @typedef {{
- *  id:string, name:string, version:string, status:"draft"|"active"|"archived",
- *  division:string, goal:string,
- *  responsibilities:string[],
- *  kpi:{ current: KPIItem[], recommended: KPIItem[] },
- *  competencyMap: Record<string, 1|2|3|4>,
- *  assessmentGuidelines?: {
- *    behavioralAnchors?: Record<string, string[]>,
- *    scales?: string,
- *    evidenceExamples?: string[]
- *  },
- *  testAssignment?: {
- *    objective:string, deliverables:string[], evaluationCriteria:string[], timeboxHours?:number
- *  },
- *  assessmentCenter?: {
- *    cases?: { title:string, durationMin:number, observersRoles:string[], competenciesObserved:string[] }[],
- *    rubrics?: string
- *  },
- *  tags?: string[],
- *  meta?: Record<string, any>,
- *  createdAt?: string, updatedAt?: string
- * }} RoleStandard
- */
-
-// Небольшой генератор полноценных эталонов на базе initialRoles (моки)
-function makeStandardFromInitial(r) {
-  /** @type {RoleStandard} */
-  return {
-    id: `std_${r.name.replace(/\s+/g,"_").toLowerCase()}_${(r.version||"v1.0").toLowerCase()}`,
-    name: r.name,
-    version: r.version || "v1.0",
+// ——— Стандарты ролей (карточки-«эталоны») — подсовываем 4 примера
+export const roleStandards = [
+  {
+    id: "std_kam_v1",
     status: "active",
-    division: r.name.includes("GKAM") ? "Sales / Electronics" : "Sales / FMCG",
-    goal: r.kpi || "Достичь целей по продажам/полке/NPS для категории.",
+    name: "KAM",
+    version: "v1.0",
+    division: "Sales / FMCG",
+    goal: "Рост продаж в ключевых сетях и устойчивость листинга.",
     responsibilities: [
-      "Вести ключевые сети/регионы, обеспечивать листинг и промо",
-      "Готовить и защищать JBP, синхронизировать кросс-функции",
-      "Отслеживать P&L, управлять маржой и OOS",
+      "Планирование и защита JBP",
+      "Управление промо и листингом",
+      "Синхронизация маркетинга и логистики",
     ],
     kpi: {
-      current: [{ name: r.kpi || "Рост продаж", target: "", period: "квартал" }],
+      current: [
+        { name: "Рост sell-out", target: "+8% QoQ", period: "квартал" },
+        { name: "Доля полки в ТОП-5 сетей", target: "≥95%", period: "месяц" },
+      ],
       recommended: [
-        { name: "Маржинальность категории", target: "↑", period: "квартал" },
-        { name: "NPS ключевых сетей", target: "+10", period: "полугодие" },
+        { name: "Маржинальность категории", target: "≥X%", period: "квартал" },
+        { name: "NPS сетей", target: "+10", period: "полугодие" },
       ],
     },
-    competencyMap: r.competencies || {},
+    competencyMap: {
+      "Стратегическое мышление": 4,
+      "Переговоры": 4,
+      "Аналитика": 3,
+      "Коммуникация": 4,
+      "Лидерство": 3,
+      "Финансовое мышление": 3,
+      "Тайм-менеджмент": 3,
+      "Проектное управление": 3,
+    },
     assessmentGuidelines: {
+      scales: "Шкала 1–4 с поведенческими индикаторами на каждый уровень.",
       behavioralAnchors: {
         "Переговоры": [
-          "Готовит позицию/BATNA; фиксирует договорённости письменно",
-          "Управляет повесткой и рамками встречи"
-        ],
-        "Стратегическое мышление": [
-          "Формулирует гипотезы роста, просчитывает сценарии/риски",
+          "Готовит BATNA; фиксирует договорённости письменно",
+          "Управляет повесткой и рамками встречи",
         ],
       },
-      scales: "Шкала 1–4 с поведенческими индикаторами для каждого уровня",
       evidenceExamples: ["Снижение OOS на 30%", "JBP с X5 на Q3"],
     },
     testAssignment: {
@@ -283,35 +145,157 @@ function makeStandardFromInitial(r) {
       ],
       rubrics: "Матрица Компетенции × Поведенческие индикаторы",
     },
-    tags: [r.name],
-    meta: {},
-    createdAt: r.created || new Date().toISOString().slice(0,10),
-    updatedAt: r.created || new Date().toISOString().slice(0,10),
-  };
-}
+    tags: ["retail", "sales"],
+    createdAt: "2025-08-10",
+    updatedAt: "2025-08-10",
+  },
+  {
+    id: "std_rm_v1",
+    status: "active",
+    name: "RM",
+    version: "v1.0",
+    division: "Sales / Regions",
+    goal: "Обеспечить выполнение плана продаж в регионе и качественную операционку.",
+    responsibilities: ["Управление территорией", "Координация промо", "Витрины и выкладка"],
+    kpi: {
+      current: [
+        { name: "Выполнение плана sell-in", target: "≥100%", period: "месяц" },
+        { name: "SKU в наличии", target: "≥98%", period: "месяц" },
+      ],
+      recommended: [
+        { name: "Скорость закрытия out-of-stock", target: "≤24ч", period: "месяц" },
+      ],
+    },
+    competencyMap: {
+      "Коммуникация": 4, "Переговоры": 2, "Стратегическое мышление": 3, "Тайм-менеджмент": 4, "Проектное управление": 3
+    },
+    assessmentGuidelines: { scales: "1–4", behavioralAnchors: {}, evidenceExamples: [] },
+    testAssignment: { objective: "План полочного пространства", deliverables: ["Excel план"], evaluationCriteria: ["Логика", "Данные"], timeboxHours: 4 },
+    assessmentCenter: { cases: [], rubrics: "" },
+    tags: ["regions"],
+    createdAt: "2025-08-15",
+    updatedAt: "2025-08-15",
+  },
+  {
+    id: "std_gkam_el_v1",
+    status: "active",
+    name: "GKAM (Electronics)",
+    version: "v1.0",
+    division: "Sales / Electronics",
+    goal: "Развитие электроники в ключевых сетях и защита маржи.",
+    responsibilities: ["JBP электроника", "Категорийная аналитика", "Переговоры с HQ"],
+    kpi: {
+      current: [
+        { name: "Доля полки электроника", target: "+20%", period: "квартал" },
+      ],
+      recommended: [
+        { name: "GM электроника", target: "≥X%", period: "квартал" },
+      ],
+    },
+    competencyMap: {
+      "Стратегическое мышление": 4, "Аналитика": 4, "Переговоры": 4, "Лидерство": 4, "Финансовое мышление": 3
+    },
+    assessmentGuidelines: { scales: "1–4", behavioralAnchors: {}, evidenceExamples: [] },
+    testAssignment: { objective: "Категорийная стратегия", deliverables: ["Презентация"], evaluationCriteria: ["Факты/гипотезы"], timeboxHours: 10 },
+    assessmentCenter: { cases: [], rubrics: "" },
+    tags: ["electronics"],
+    createdAt: "2025-08-20",
+    updatedAt: "2025-08-20",
+  },
+  {
+    id: "std_lnd_head_v1",
+    status: "active",
+    name: "Руководитель отдела обучения",
+    version: "v1.0",
+    division: "L&D",
+    goal: "Сократить time-to-productivity и масштабировать компетенции.",
+    responsibilities: ["Дизайн курсов", "Оценка эффективности", "Наставничество"],
+    kpi: {
+      current: [{ name: "Вовлечённость в обучение", target: "≥70%", period: "квартал" }],
+      recommended: [{ name: "TtP (нед.)", target: "-20%", period: "полугодие" }],
+    },
+    competencyMap: { "Лидерство": 4, "Коммуникация": 4, "Проектное управление": 4, "Аналитика": 3, "Стратегическое мышление": 3 },
+    assessmentGuidelines: { scales: "1–4", behavioralAnchors: {}, evidenceExamples: [] },
+    testAssignment: { objective: "Roadmap обучения", deliverables: ["Roadmap"], evaluationCriteria: ["Цели/метрики"], timeboxHours: 8 },
+    assessmentCenter: { cases: [], rubrics: "" },
+    tags: ["lnd"],
+    createdAt: "2025-08-22",
+    updatedAt: "2025-08-22",
+  },
+];
 
-// Канонический массив эталонов (моки)
-export const roleStandards = initialRoles.map(makeStandardFromInitial);
-
-// Утилиты импорта/экспорта JSON
-export function exportJSON(obj, filename) {
-  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-export function parseJSONFile(file, onOk, onErr) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const data = JSON.parse(reader.result);
-      if (!data.name || !data.version || !data.competencyMap) throw new Error("Некорректный формат: нужны name, version, competencyMap");
-      onOk?.(data);
-    } catch (e) { onErr?.(e); }
-  };
-  reader.onerror = () => onErr?.(new Error("Не удалось прочитать файл"));
-  reader.readAsText(file);
-}
+// ——— Сотрудники (12 профилей)
+export const initialEmployees = [
+  { id: 101, name: "Иван Иванов", title: "RM", department: "Продажи", region: "ЦФО",
+    readiness: { targetRole: "KAM", percent: 72 },
+    competencies: { "Стратегическое мышление": 3, "Переговоры": 3, "Коммуникация": 4, "Тайм-менеджмент": 4 },
+    assessments: [{ date: "2025-05", percent: 60 },{ date: "2025-06", percent: 68 },{ date: "2025-07", percent: 72 }],
+    lastAssessment: "2025-07",
+    bio: "5 лет в FMCG; федеральные сети; усиливает коммуникацию, стабильно закрывает операционку." },
+  { id: 102, name: "Анна Петрова", title: "RM", department: "Продажи", region: "ПФО",
+    readiness: { targetRole: "KAM", percent: 65 },
+    competencies: { "Стратегическое мышление": 2, "Переговоры": 3, "Аналитика": 2, "Коммуникация": 4 },
+    assessments: [{ date: "2025-05", percent: 55 },{ date: "2025-06", percent: 61 },{ date: "2025-07", percent: 65 }],
+    lastAssessment: "2025-07",
+    bio: "4 года в полевом мерче; сильная дисциплина; хочет развить переговоры." },
+  { id: 103, name: "Дмитрий Кузнецов", title: "KAM", department: "Продажи", region: "СЗФО",
+    readiness: { targetRole: "GKAM (Electronics)", percent: 88 },
+    competencies: { "Стратегическое мышление": 4, "Аналитика": 4, "Переговоры": 3, "Коммуникация": 4 },
+    assessments: [{ date: "2025-05", percent: 78 },{ date: "2025-06", percent: 84 },{ date: "2025-07", percent: 88 }],
+    lastAssessment: "2025-07",
+    bio: "7 лет в ключевых клиентах; 2 JBP; улучшил долю полки в ТОП-3 сетях." },
+  { id: 104, name: "Мария Волконская", title: "Руководитель отдела обучения", department: "L&D", region: "ЦФО",
+    readiness: { targetRole: "CEO", percent: 54 },
+    competencies: { "Лидерство": 4, "Коммуникация": 4, "Проектное управление": 4, "Аналитика": 3, "Стратегическое мышление": 3 },
+    assessments: [{ date: "2025-06", percent: 52 },{ date: "2025-07", percent: 54 }],
+    lastAssessment: "2025-07",
+    bio: "10 лет в обучении; строит корпоративные академии; про TtP думает как инженер." },
+  { id: 105, name: "Сергей Брагин", title: "KAM", department: "Продажи", region: "ЮФО",
+    readiness: { targetRole: "GKAM (Electronics)", percent: 74 },
+    competencies: { "Переговоры": 4, "Коммуникация": 4, "Аналитика": 3, "Стратегическое мышление": 3 },
+    assessments: [{ date: "2025-05", percent: 68 },{ date: "2025-06", percent: 70 },{ date: "2025-07", percent: 74 }],
+    lastAssessment: "2025-07",
+    bio: "12 лет в продажах; обожает структурировать аргументацию и вести сложные встречи." },
+  { id: 106, name: "Екатерина Алексеева", title: "RM", department: "Продажи", region: "СФО",
+    readiness: { targetRole: "KAM", percent: 61 },
+    competencies: { "Коммуникация": 4, "Переговоры": 3, "Тайм-менеджмент": 4, "Проектное управление": 3 },
+    assessments: [{ date: "2025-05", percent: 53 },{ date: "2025-06", percent: 57 },{ date: "2025-07", percent: 61 }],
+    lastAssessment: "2025-07",
+    bio: "Карьерный RM; прокачивает аналитику; любит чек-листы и стандарты торгового зала." },
+  { id: 107, name: "Илья Можаев", title: "RM", department: "Продажи", region: "ДФО",
+    readiness: { targetRole: "KAM", percent: 58 },
+    competencies: { "Коммуникация": 3, "Переговоры": 2, "Тайм-менеджмент": 4, "Стратегическое мышление": 2 },
+    assessments: [{ date: "2025-05", percent: 50 },{ date: "2025-06", percent: 54 },{ date: "2025-07", percent: 58 }],
+    lastAssessment: "2025-07",
+    bio: "Сильный в операционке, развивает переговоры; закрывает OOS быстрее среднего." },
+  { id: 108, name: "Полина Жданова", title: "KAM", department: "Продажи", region: "УФО",
+    readiness: { targetRole: "GKAM (Electronics)", percent: 79 },
+    competencies: { "Переговоры": 4, "Коммуникация": 4, "Аналитика": 3, "Финансовое мышление": 3 },
+    assessments: [{ date: "2025-05", percent: 70 },{ date: "2025-06", percent: 75 },{ date: "2025-07", percent: 79 }],
+    lastAssessment: "2025-07",
+    bio: "Умеет переводить JBP в конкретные цифры; любит строить промо-календарь от unit-экономики." },
+  { id: 109, name: "Артём Ким", title: "CEO", department: "HQ", region: "Москва",
+    readiness: { targetRole: "CEO", percent: 91 },
+    competencies: { "Стратегическое мышление": 4, "Лидерство": 4, "Финансовое мышление": 4, "Коммуникация": 4, "Аналитика": 4 },
+    assessments: [{ date: "2025-07", percent: 91 }],
+    lastAssessment: "2025-07",
+    bio: "15 лет в топ-менеджменте; собирает сбалансированные портфели направлений." },
+  { id: 110, name: "Ольга Летовская", title: "RM", department: "Продажи", region: "СЗФО",
+    readiness: { targetRole: "KAM", percent: 67 },
+    competencies: { "Коммуникация": 4, "Проектное управление": 3, "Тайм-менеджмент": 4, "Переговоры": 3 },
+    assessments: [{ date: "2025-05", percent: 59 },{ date: "2025-06", percent: 63 },{ date: "2025-07", percent: 67 }],
+    lastAssessment: "2025-07",
+    bio: "Любит операционные апгрейды: чек-листы, SLA, шаблоны писем; дисциплина как у часов." },
+  { id: 111, name: "Фёдор Глазьев", title: "KAM", department: "Продажи", region: "ЦФО",
+    readiness: { targetRole: "GKAM (Electronics)", percent: 82 },
+    competencies: { "Переговоры": 4, "Коммуникация": 4, "Стратегическое мышление": 4, "Аналитика": 3 },
+    assessments: [{ date: "2025-05", percent: 76 },{ date: "2025-06", percent: 79 },{ date: "2025-07", percent: 82 }],
+    lastAssessment: "2025-07",
+    bio: "Спокоен в переговорах; быстро разруливает эскалации; понимает KPI сети." },
+  { id: 112, name: "Светлана Маликова", title: "RM", department: "Продажи", region: "ПФО",
+    readiness: { targetRole: "KAM", percent: 63 },
+    competencies: { "Коммуникация": 3, "Переговоры": 3, "Стратегическое мышление": 2, "Проектное управление": 3 },
+    assessments: [{ date: "2025-05", percent: 56 },{ date: "2025-06", percent: 60 },{ date: "2025-07", percent: 63 }],
+    lastAssessment: "2025-07",
+    bio: "Умеет дружить с операционкой; теперь идёт в сторону категорийной аналитики." },
+];
