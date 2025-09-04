@@ -14,6 +14,42 @@ export const ALL_COMPETENCIES = [
   "Проектное управление",
 ];
 
+// --- вакансии (моки) ---
+export const initialVacancies = [
+  {
+    id: "vac-001",
+    role: "KAM",
+    department: "Продажи",
+    unit: "FMCG",
+    manager: "Сергей Брагин",
+    headcount: 1,
+    location: "СПб",
+    status: "open",
+  },
+  {
+    id: "vac-002",
+    role: "RM",
+    department: "Продажи",
+    unit: "Северо-Запад",
+    manager: "Иван Иванов",
+    headcount: 2,
+    location: "СПб/удаленно",
+    status: "open",
+  },
+  {
+    id: "vac-003",
+    role: "Category Manager (FMCG)",
+    department: "Маркетинг",
+    unit: "Категорийный менеджмент",
+    manager: "Директор по маркетингу",
+    headcount: 1,
+    location: "Мск",
+    status: "draft",
+  },
+];
+
+
+
 // ────────────────────────────────────────────────────────────────────────────
 // Эталоны ролей (краткие модели для сопоставления на радарах)
 export const initialRoles = [

@@ -6,3 +6,7 @@ export { default as CandidateCard } from "./CandidateCard.jsx";
 export { default as StatCard } from "./StatCard.jsx";
 export { default as WeakAreasCard } from "./WeakAreasCard.jsx";
 export { default as StatBadge } from "./StatBadge.jsx";
+export { default as Card } from "./Card.jsx";
+export { Page } from "./Page.jsx";
+export { default as StatWidget } from "./StatWidget.jsx";
+export { default as Textarea } from "./Textarea.jsx";

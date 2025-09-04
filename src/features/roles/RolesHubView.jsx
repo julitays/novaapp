@@ -1,10 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { roleStandards, initialRoles } from "../../lib/modules.js";
+import { initialRoles } from "../../lib/modules.js";
 import { parseJSONFile } from "../../lib/importers/parseJSONFile.js";
 import { exportJSON } from "../../lib/exporters/exportJSON.js";
 import { Button, Input, Badge } from "../../components/ui";
-import CreateRoleAIView from "./CreateRoleAIView.jsx";
+import CreateRoleAIViewEmbedded from "./CreateRoleAIView.jsx";
+import { loadRoleStandards, upsertRoleStandard } from "../../lib/rolesRegistry.js" 
+
+
 
 export default function RolesHubView() {
   const navigate = useNavigate();
@@ -23,8 +26,9 @@ export default function RolesHubView() {
   }));
 
   const key = (x) => `${x.name}__${x.version}`;
-  const merged = new Map([...roleStandards, ...quickFromInitial].map((x) => [key(x), x]));
-  const [standards, setStandards] = useState(Array.from(merged.values()));
+  const base = loadRoleStandards(); // и вшитые JSON, и пользовательские из localStorage
+  const merged = new Map([...base, ...quickFromInitial].map((x) => [key(x), x]));
+  const [standards, setStandards] = useState(() => Array.from(merged.values()));
   const [mode, setMode] = useState("list"); // list | create
   const [q, setQ] = useState("");
 
@@ -39,37 +43,18 @@ export default function RolesHubView() {
   }
 
   function onImport(file) {
-    parseJSONFile(
-      file,
-      (data) => {
-        const std = {
-          id: data.id || `std_${data.name}_${data.version}`.replace(/\s+/g, "_").toLowerCase(),
-          status: data.status || "active",
-          division: data.division || "—",
-          goal: data.goal || "",
-          responsibilities: data.responsibilities || [],
-          kpi: data.kpi || { current: [], recommended: [] },
-          competencyMap: data.competencyMap || {},
-          assessmentGuidelines: data.assessmentGuidelines || {},
-          testAssignment: data.testAssignment || {},
-          assessmentCenter: data.assessmentCenter || {},
-          tags: data.tags || [],
-          meta: data.meta || {},
-          name: data.name,
-          version: data.version,
-          createdAt: data.createdAt || new Date().toISOString().slice(0, 10),
-          updatedAt: new Date().toISOString().slice(0, 10),
-        };
-        setStandards((prev) => {
-          const m = new Map(prev.map((x) => [key(x), x]));
-          m.set(key(std), std);
-          return Array.from(m.values());
-        });
-        alert(`Импортирован эталон: ${std.name} (${std.version})`);
-      },
-      (err) => alert("Ошибка импорта: " + err.message)
-    );
-  }
+  parseJSONFile(
+    file,
+    (data) => {
+      // data — уже канонический std (name, version, ...). 
+      upsertRoleStandard(data);
+      setStandards(loadRoleStandards());
+      alert(`Импортирован: ${data.name} (${data.version})`);
+    },
+    (err) => alert("Ошибка импорта: " + err.message)
+  );
+}
+
 
   function exportOne(std) {
     exportJSON(std, `${std.name.replace(/\s+/g, "_")}_${std.version}.json`);
@@ -143,19 +128,17 @@ export default function RolesHubView() {
 
       {/* Создание с AI */}
       {mode === "create" && (
-        <CreateRoleAIView
+        <CreateRoleAIViewEmbedded
           onSave={(std) => {
-            const k = (x) => `${x.name}__${x.version}`;
-            setStandards((prev) => {
-              const m = new Map(prev.map((x) => [k(x), x]));
-              m.set(k(std), std);
-              return Array.from(m.values());
-            });
-            setMode("list");
-            openDetails(std);
+            upsertRoleStandard(std);
+            setStandards(loadRoleStandards());
+            // при желании — сразу открыть карточку роли
+            // go({ view: "role", payload: std });
           }}
         />
+
       )}
     </div>
   );
 }
+

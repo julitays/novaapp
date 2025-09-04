@@ -1,217 +1,436 @@
+// src/features/employees/EmployeeProfileView.jsx
 import React from "react";
-import { useParams } from "react-router-dom";
-import { initialEmployees, initialRoles } from "../../lib/modules";
-import { matchPercent, toRadarData, LABELS, meanByGroup, weightedOverall, stdBetweenGroups, calcSelfDelta, level4to5 } from "../../lib/analytics";
-import { RadarCompare, Gauge5, Heatmap360 } from "../../components/charts";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
+
+import { Page } from "../../components/ui/Page.jsx";
+import Card from "../../components/ui/Card.jsx";
 import { Button, Badge } from "../../components/ui";
-import { parse360Excel } from "../../lib/importers/parse360Excel";
-import { exportCSV } from "../../lib/exporters/exportCSV";
+import RadarCompare from "../../components/charts/RadarCompare.jsx";
 
+import { initialEmployees, initialRoles } from "../../lib/modules";
+import { matchPercent } from "../../lib/analytics";
+
+// ───────── helpers
+const roleByName = (n) => initialRoles.find((r) => r.name === n) || initialRoles[0];
+const unionKeys = (a = {}, b = {}) =>
+  Array.from(new Set([...Object.keys(a || {}), ...Object.keys(b || {})]));
+
+const Chip = ({ tone = "slate", children }) => {
+  const map = {
+    slate: "bg-slate-100 text-slate-700",
+    green: "bg-green-100 text-green-700",
+    amber: "bg-amber-100 text-amber-700",
+    rose: "bg-rose-100 text-rose-700",
+    indigo: "bg-indigo-100 text-indigo-700",
+  };
+  return <span className={`inline-block text-xs px-2 py-0.5 rounded ${map[tone]}`}>{children}</span>;
+};
+
+function Avatar({ user, size = 96 }) {
+  const name = user?.name || "";
+  const initials = name.split(" ").map(w=>w[0]).filter(Boolean).slice(0,2).join("").toUpperCase();
+  const url = user?.photoUrl || user?.avatar;
+  return url ? (
+    <img src={url} alt={name} className="rounded-2xl object-cover" style={{width:size, height:size}} />
+  ) : (
+    <div
+      className="rounded-2xl grid place-items-center text-white font-medium"
+      style={{width:size, height:size, background:"linear-gradient(135deg,#6366f1 0%,#10b981 100%)"}}
+    >
+      {initials || "●"}
+    </div>
+  );
+}
+function formatTenure(startStr){
+  if(!startStr) return "—";
+  const d=new Date(startStr); if(Number.isNaN(+d)) return "—";
+  const now=new Date();
+  let m=(now.getFullYear()-d.getFullYear())*12+(now.getMonth()-d.getMonth());
+  if(now.getDate()<d.getDate()) m--;
+  const y=Math.floor(m/12), mm=m%12;
+  return (y?`${y} г. `:"")+(mm?`${mm} мес.`:"") || "меньше месяца";
+}
+
+// inline-editable поле с автосохранением
+function EditableField({ label, value, onChange, placeholder="—" }) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(value ?? "");
+  React.useEffect(() => setDraft(value ?? ""), [value]);
+
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-slate-500">{label}</span>
+      {!editing ? (
+        <button className="text-left hover:underline" onClick={()=>setEditing(true)} title="Редактировать">
+          {value?.trim() ? value : <span className="text-slate-400">{placeholder}</span>}
+        </button>
+      ) : (
+        <div className="flex items-center gap-1">
+          <input
+            autoFocus
+            className="text-sm rounded border border-slate-300 px-2 py-1 w-44"
+            value={draft}
+            onChange={(e)=>setDraft(e.target.value)}
+            onKeyDown={(e)=>{ if(e.key==="Enter"){ onChange(draft.trim()); setEditing(false);} if(e.key==="Escape"){ setEditing(false);} }}
+          />
+          <Button variant="ghost" onClick={()=>{onChange(draft.trim()); setEditing(false);}}>OK</Button>
+          <Button variant="ghost" onClick={()=>setEditing(false)}>Отмена</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// компактный timeline переходов
+function CareerTimeline({ history=[] }) {
+  if (!history.length) return <div className="text-sm text-slate-500">История переходов не указана.</div>;
+  return (
+    <ol className="relative pl-5 text-sm">
+      <span className="absolute left-2 top-0 bottom-0 w-px bg-slate-200" />
+      {history.map((h, i)=>(
+        <li key={i} className="mb-3">
+          <div className="relative">
+            <span className="absolute -left-[10px] top-1 w-2 h-2 rounded-full bg-indigo-500" />
+            <div className="font-medium">{h.role}</div>
+            <div className="text-slate-500">
+              {h.from || "—"} {h.to ? `→ ${h.to}` : ""}
+              {h.department ? ` · ${h.department}` : ""}
+            </div>
+            {h.note && <div className="text-slate-600">{h.note}</div>}
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function deriveStrengthsAndGaps(emp, role, topN=3){
+  const keys = unionKeys(role?.competencies, emp?.competencies);
+  const tuples = keys.map(k=>{
+    const std=role?.competencies?.[k]??0, val=emp?.competencies?.[k]??0;
+    return {k,std,val,diff:val-std};
+  });
+  return {
+    strengths: tuples.filter(t=>t.diff>=0).sort((a,b)=>b.diff-a.diff||b.val-a.val).slice(0,topN)
+      .map(t=>({name:t.k, hint:t.diff>0?`>${t.std}`:`=${t.std}`})),
+    gaps: tuples.filter(t=>t.diff<0).sort((a,b)=>a.diff-b.diff).slice(0,topN)
+      .map(t=>({name:t.k, missing:t.std-t.val})),
+  };
+}
+function Stat({label,value,sub,bar}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-3">
+      <div className="text-xs text-slate-500">{label}</div>
+      <div className="text-2xl font-semibold">{value}</div>
+      {sub && <div className="text-xs mt-0.5">{sub}</div>}
+      {typeof bar === "number" && (
+        <div className="mt-2 h-1.5 rounded bg-slate-100">
+          <div className="h-1.5 rounded bg-indigo-500" style={{width:`${bar}%`}} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ───────── component
 export default function EmployeeProfileView() {
-  const { id } = useParams();
-  const emp = initialEmployees.find(e => String(e.id) === String(id)) || initialEmployees[0];
+  const navigate = useNavigate();
+  const params = useParams();
+  const loc = useLocation();
 
-  const byName = Object.fromEntries(initialRoles.map(r => [r.name, r]));
-  const currentRole = byName[emp?.title] || initialRoles[0];
+  const byState = loc.state?.emp;
+  const byId = initialEmployees.find((e) => String(e.id) === String(params.id));
+  const baseEmp = byState || byId || initialEmployees[0];
 
-  const readinessCurrent = matchPercent(emp, currentRole);
-  const assessments = emp?.assessments ?? [];
+  // локальные редактируемые поля (autosave per employee)
+  const STORE_KEY = `novaapp_emp_profile_${baseEmp.id}`;
+  const stored = React.useMemo(() => {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch { return {}; }
+  }, [STORE_KEY]);
+
+  const [empExtra, setEmpExtra] = React.useState({
+    city: baseEmp.city || baseEmp.region || stored.city || "",
+    languages: baseEmp.languages || stored.languages || "",
+    contacts: baseEmp.email || baseEmp.phone || stored.contacts || "",
+  });
+  React.useEffect(()=>{ localStorage.setItem(STORE_KEY, JSON.stringify(empExtra)); }, [empExtra, STORE_KEY]);
+
+  const emp = { ...baseEmp, city: empExtra.city, languages: empExtra.languages, contacts: empExtra.contacts };
+
+  const currentRole = roleByName(emp?.title);
+  const suitability = matchPercent(emp, currentRole);
+
+  const assessments = emp?.assessments || [];
   const last = assessments[assessments.length - 1];
   const prev = assessments[assessments.length - 2];
   const delta = last && prev ? last.percent - prev.percent : 0;
-  const passedAssessment = assessments.length > 0;
 
-  const radarData = toRadarData(currentRole, emp.competencies);
-  const bio = emp?.bio || "Краткая биография: 5 лет в FMCG; сильные стороны — коммуникация и дисциплина.";
+  const manager =
+    emp?.managerName ||
+    initialEmployees.find((x) => String(x.id) === String(emp?.managerId))?.name ||
+    "—";
 
-  const storageKey = `novaapp360_${emp.id}`;
-  const [data360, setData360] = React.useState(() => {
-    const saved = localStorage.getItem(storageKey);
-    return saved ? JSON.parse(saved) : [];
-  });
-  React.useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(data360 || []));
-  }, [data360]);
+  const bio = emp?.bio || "5 лет в FMCG; работа с федеральными сетями; сильные стороны — коммуникация и дисциплина.";
+  const clientReview = emp?.clientReview || "Клиент отмечает стабильную коммуникацию и инициативность.";
+  const managerReview = emp?.managerReview || "Усилить переговорный блок и кейсовую аналитику.";
 
-  const PRESETS = {
-    equal: { peers: 1, reports: 1, manager: 1, self: 1 },
-    manager40: { peers: 0.3, reports: 0.3, manager: 0.8, self: 0.2 },
-    peers40: { peers: 0.8, reports: 0.4, manager: 0.4, self: 0.2 },
-    custom: { peers: 1, reports: 1, manager: 1, self: 0.5 },
+  const startedAtRole = emp?.startedAtRole || emp?.startedAtCurrentRole || emp?.startedAt;
+  const tenure = formatTenure(startedAtRole);
+
+  // История карьеры (если нет — сделаем мягкий фолбэк)
+  const career = emp?.careerHistory && emp.careerHistory.length
+    ? emp.careerHistory
+    : [
+        { role: emp.title, from: startedAtRole || "—", to: "", department: emp.department },
+        { role: emp.prevTitle || "RM", from: "2022-01-01", to: startedAtRole || "—", department: emp.prevDepartment || emp.department, note: "внутреннее повышение" },
+      ];
+
+  const { strengths, gaps } = deriveStrengthsAndGaps(emp, currentRole);
+
+  const summaryLine =
+    gaps.length === 0
+      ? `По компетенциям не ниже эталона «${currentRole.name}». Можно расширять зону ответственности.`
+      : `Зоны роста: ${gaps.map(g=>`${g.name} (−${g.missing})`).join(", ")} — сфокусировать развитие под «${currentRole.name}».`;
+
+  const renderLevelCell = (stdLvl=0, empLvl=0) => {
+    const gap = stdLvl - empLvl;
+    if (gap <= 0) return <Chip tone="green">{empLvl} ✓</Chip>;
+    if (gap === 1) return <Chip tone="amber">{empLvl} (−1)</Chip>;
+    return <Chip tone="rose">{empLvl} (−{gap})</Chip>;
   };
-  const [preset, setPreset] = React.useState("equal");
-  const [weights, setWeights] = React.useState(PRESETS.equal);
-  React.useEffect(() => { if (preset !== "custom") setWeights(PRESETS[preset]); }, [preset]);
 
-  function export360() {
-    const header = ["Компетенция","Коллеги","Подчинённые","Руководитель","Самооценка","Среднее","Эталон роли (1–5)"];
-    const rows = [header].concat(
-      (data360||[]).map(c=>{
-        const g = meanByGroup(c);
-        const total = Object.values(g).length ? (Object.values(g).reduce((a,b)=>a+b,0)/Object.values(g).length) : null;
-        const std5 = level4to5(currentRole.competencies?.[c.name] ?? 0);
-        const fmt = (x)=> x==null ? "—" : x.toFixed(2);
-        return [c.name, fmt(g.peers), fmt(g.reports), fmt(g.manager), fmt(g.self), fmt(total), fmt(std5)];
-      })
-    );
-    exportCSV(rows, `${emp.name.replace(/\s+/g,"_")}_360.csv`);
-  }
+  // экшены паспорта
+  const emailHref = emp?.email ? `mailto:${emp.email}` : null;
+  const openManager = () => {
+    const m = initialEmployees.find(x => x.name === manager) ||
+              initialEmployees.find(x => String(x.id) === String(emp.managerId));
+    if (m) navigate(`/employees/${m.id}`);
+  };
 
   return (
-    <div className="space-y-6">
-      {/* шапка */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-        <div className="flex flex-col gap-3">
-          <div className="text-2xl font-semibold">{emp?.name}</div>
-          <div className="text-slate-500 dark:text-slate-400 text-sm">
-            Роль: <b>{emp?.title}</b> · Отдел: {emp?.department} · Регион: {emp?.region}
-          </div>
-          <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">{bio}</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Stat label="Соответствие текущей роли" value={`${readinessCurrent}%`} tone="green" />
-            <Stat label="Последняя оценка" value={emp?.lastAssessment || "—"} />
-            <Stat label="Ассессмент" value={passedAssessment ? "Проходил(а)" : "Нет"} tone={passedAssessment ? "indigo" : "slate"} />
-            <Stat label="Δ к прошлой" value={(delta>0?`+${delta}`:delta)+"%"} tone={delta>=0?"green":"rose"} />
-          </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={() => window.print()}>Сгенерировать ИПР (PDF)</Button>
-            <Button variant="ghost" onClick={export360}>Экспорт 360 (CSV)</Button>
-          </div>
+    <Page
+      title={emp?.name || "Сотрудник"}
+      actions={
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" onClick={() => window.print()}>Сгенерировать ИПР (PDF)</Button>
+          <Button variant="ghost" onClick={() => navigate(-1)}>Назад</Button>
         </div>
-      </div>
-
-      {/* сравнение по компетенциям */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-        <div className="font-medium mb-2">Соответствие компетенций текущей роли: {currentRole.name}</div>
-        <RadarCompare data={radarData} />
-      </div>
-
-      {/* панель оценок */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-        <div className="font-medium mb-3">Оценки и ассессмент</div>
-        <div className="text-sm space-y-2">
-          <Row label="Статус ассессмента" value={<Badge tone={passedAssessment ? "green" : "slate"}>{passedAssessment ? "Проходил(а)" : "Нет данных"}</Badge>} />
-          <Row label="Последняя дата оценки" value={emp?.lastAssessment || "—"} />
-          {last && <Row label="Последний %" value={`${last.percent}%`} />}
-          {prev && <Row label="Предыдущий %" value={`${prev.percent}%`} />}
-          <Row label="Динамика к прошлому" value={<span className={`font-medium ${delta>=0?"text-green-600":"text-rose-600"}`}>{delta>0?`+${delta}%`:`${delta}%`}</span>} />
-        </div>
-      </div>
-
-      {/* 360° блок */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="font-medium">360° оценка (шкала 1–5; эталон роли приведён к 1–5)</div>
-          <div className="flex items-center gap-2">
-            <select value={preset} onChange={(e)=>setPreset(e.target.value)} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm px-2 py-1">
-              <option value="equal">Равные веса</option>
-              <option value="manager40">Менеджер 40%</option>
-              <option value="peers40">Коллеги 40%</option>
-              <option value="custom">Кастом</option>
-            </select>
-            {preset === "custom" && (
-              <div className="hidden md:flex items-center gap-2 text-xs">
-                {["peers","reports","manager","self"].map(k=>(
-                  <label key={k} className="flex items-center gap-1">
-                    {LABELS[k]}
-                    <input type="number" step="0.1" min="0" className="w-16 rounded border border-slate-200 dark:border-slate-700 px-1 py-0.5" value={weights[k] ?? 0} onChange={(e)=>setWeights({...weights, [k]: Number(e.target.value)})} />
-                  </label>
-                ))}
-              </div>
-            )}
-            <label className="cursor-pointer text-sm px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
-              Импорт 360 (Excel)
-              <input type="file" accept=".xlsx,.xls" className="hidden" onChange={async (e)=>{
-                const f = e.target.files?.[0]; if (!f) return;
-                const parsed = await parse360Excel(f);
-                setData360(parsed);
-                e.target.value = "";
-              }} />
-            </label>
-          </div>
-        </div>
-
-        {(!data360 || data360.length === 0) && (
-          <div className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
-            Нет данных 360. Загрузите Excel — мы распарсим и построим теплокарты.
-          </div>
-        )}
-
-        {data360?.map((comp) => {
-          const g = meanByGroup(comp);
-          const overall = weightedOverall(comp, weights);
-          const std = stdBetweenGroups(comp);
-          const selfDelta = calcSelfDelta(comp);
-          const roleStd5 = level4to5(currentRole.competencies?.[comp.name] ?? 0);
-          const disagreement =
-            std < 0.15 ? { label:"согласованно", tone:"green" } :
-            std < 0.35 ? { label:"умеренное расхождение", tone:"amber" } :
-                         { label:"высокое расхождение", tone:"rose" };
-
-          return (
-            <div key={comp.name} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-              <div className="w-full p-4 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-medium">{comp.name}</div>
-                  <div className="text-xs text-slate-500 truncate">{comp.anchor}</div>
-                </div>
-                <div className="hidden md:flex items-center gap-3">
-                  <Gauge5 actual={overall} standard={roleStd5} />
-                  <div className="flex items-center gap-1">
-                    {Object.entries(g).map(([label, val]) => (
-                      <span key={label} className="text-xs px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                        {LABELS[label]}: <b>{val!=null?val.toFixed(2):"—"}</b>
-                      </span>
-                    ))}
-                  </div>
-                  <Badge tone={disagreement.tone}>{disagreement.label}</Badge>
-                  {selfDelta!=null && (
-                    <Badge tone={selfDelta>=0 ? "slate" : "rose"}>
-                      Δ self vs внешние: {selfDelta>=0?`+${selfDelta.toFixed(2)}`:selfDelta.toFixed(2)}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-              <div className="px-4 pb-4 space-y-4">
-                <Heatmap360 comp={comp} />
-                <div className="rounded-xl border border-amber-200 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm">
-                  <b>Рекомендация:</b>{" "}
-                  {overall!=null && roleStd5!=null && overall < roleStd5
-                    ? `Добрать ~${(roleStd5 - overall).toFixed(2)} по «${comp.name}». Сфокусируйся на вопросах с наименьшими оценками.`
-                    : `Поддерживать текущий уровень по «${comp.name}». Снизить разброс между группами.`}
-                  <div className="mt-2">
-                    <Button variant="ghost" onClick={()=>alert("Добавлено в ИПР (демо)")}>Добавить в ИПР</Button>
-                  </div>
-                </div>
+      }
+      subtitle={
+        <span className="text-slate-600">
+          {emp?.title} · {emp?.department} · {emp.city || emp.region || "—"} · Соответствие текущей роли: <b>{suitability}%</b>{" "}
+          <Badge tone={delta >= 0 ? "green" : "rose"}>{delta >= 0 ? `+${delta}%` : `${delta}%`} к прошлой</Badge>
+        </span>
+      }
+    >
+      {/* Двухколоночный макет */}
+      <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-4">
+        {/* LEFT: Паспорт (sticky) */}
+        <aside className="xl:sticky xl:top-20 self-start">
+          <Card className="p-4">
+            {/* header */}
+            <div className="flex items-center gap-3">
+              <Avatar user={emp} />
+              <div className="leading-snug">
+                <div className="text-base font-semibold text-slate-900">{emp?.name}</div>
+                <div className="text-[12px] text-slate-600 mt-0.5">Руководитель</div>
+                <div className="text-sm text-slate-800">{manager}</div>
               </div>
             </div>
-          );
-        })}
+
+            {/* actions */}
+            <div className="mt-3 flex items-center gap-2">
+              <Button variant="outline" onClick={openManager}>Профиль руководителя</Button>
+              <Button
+                variant="outline"
+                onClick={() => emailHref ? window.location.assign(emailHref) : alert("E-mail не указан")}
+              >
+                Написать
+              </Button>
+            </div>
+
+            {/* паспорт с инлайновым редактированием */}
+            <div className="mt-4 rounded-xl border border-slate-200 p-3 text-sm space-y-2">
+              <EditableField
+                label="Департамент"
+                value={emp?.department || "—"}
+                onChange={()=>{}}
+              />
+              <EditableField
+                label="Отдел/команда"
+                value={emp?.subDepartment || emp?.team || ""}
+                onChange={()=>{}}
+                placeholder="уточнить"
+              />
+              <EditableField
+                label="Город"
+                value={empExtra.city}
+                onChange={(v)=>setEmpExtra(s=>({ ...s, city: v }))}
+                placeholder="добавить"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Стаж в роли</span>
+                <span>{tenure}</span>
+              </div>
+              <EditableField
+                label="Языки"
+                value={empExtra.languages}
+                onChange={(v)=>setEmpExtra(s=>({ ...s, languages: v }))}
+                placeholder="RU, EN…"
+              />
+              <EditableField
+                label="Контакты"
+                value={empExtra.contacts}
+                onChange={(v)=>setEmpExtra(s=>({ ...s, contacts: v }))}
+                placeholder="email/телефон"
+              />
+            </div>
+
+            {/* strengths/gaps */}
+            <div className="mt-3">
+              <div className="text-xs text-slate-500 mb-1">Сильные стороны</div>
+              <div className="flex flex-wrap gap-1.5">
+                {strengths.length ? strengths.map(s=>(
+                  <Chip key={s.name} tone="green">{s.name} {s.hint}</Chip>
+                )) : <span className="text-xs text-slate-500">—</span>}
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="text-xs text-slate-500 mb-1">Зоны роста</div>
+              <div className="flex flex-wrap gap-1.5">
+                {gaps.length ? gaps.map(g=>(
+                  <Chip key={g.name} tone="amber">{g.name} (−{g.missing})</Chip>
+                )) : <span className="text-xs text-slate-500">—</span>}
+              </div>
+            </div>
+
+            {/* био */}
+            <div className="mt-3 text-sm leading-relaxed text-slate-700">
+              <span className="font-medium">Био:</span> {bio}
+            </div>
+
+            {/* timeline */}
+            <div className="mt-4">
+              <div className="text-xs text-slate-500 mb-1">История переходов</div>
+              <CareerTimeline history={career} />
+            </div>
+          </Card>
+        </aside>
+
+        {/* RIGHT: Контентные панели */}
+        <div className="space-y-4">
+          {/* Радар + статы */}
+          <Card className="p-4">
+            <div className="mb-3">
+              <div className="font-medium">Эталон «{currentRole.name}» vs сотрудник</div>
+            </div>
+            <RadarCompare
+              role={{ name: currentRole.name, competencies: currentRole.competencies }}
+              employee={emp}
+              height={360}
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+              <Stat label="Соответствие текущей роли" value={`${suitability}%`} bar={suitability} />
+              <Stat
+                label="Последняя оценка"
+                value={last ? `${last.percent}%` : "—"}
+                sub={<span className={delta>=0?"text-green-600":"text-rose-600"}>{delta>=0?`+${delta}%`:`${delta}%`} к предыдущей</span>}
+              />
+              <Stat
+                label="Ассессмент"
+                value={assessments.length ? "Есть" : "Нет"}
+                sub={assessments.length ? `замеров: ${assessments.length}` : "запланируйте"}
+              />
+            </div>
+          </Card>
+
+          {/* Динамика оценок */}
+          <Card className="p-4">
+            <div className="font-medium mb-2">Динамика оценок</div>
+            {assessments.length === 0 ? (
+              <div className="text-sm text-slate-500">Пока нет данных.</div>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {assessments.slice().reverse().map((a, idx) => {
+                  const next = assessments[assessments.length - 1 - idx - 1];
+                  const d = next ? a.percent - next.percent : 0;
+                  return (
+                    <li key={a.date} className="py-2 flex items-center justify-between">
+                      <div className="text-sm">
+                        <div className="font-medium">{a.date}</div>
+                        <div className="text-slate-500">Итоговая оценка</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold">{a.percent}%</div>
+                        <div className={`text-xs ${d>=0?"text-green-600":"text-rose-600"}`}>
+                          {d>=0?`+${d}%`:`${d}%`} к предыдущей
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Card>
+
+          {/* Отзывы */}
+          <Card className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="font-medium mb-1">ОС от клиента</div>
+                <p className="text-sm text-slate-700 leading-relaxed">{clientReview}</p>
+              </div>
+              <div>
+                <div className="font-medium mb-1">ОС от руководителя</div>
+                <p className="text-sm text-slate-700 leading-relaxed">{managerReview}</p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Таблица сравнения */}
+          <Card className="overflow-auto">
+            <div className="p-4 pb-0 font-medium">Сопоставление по компетенциям (текущая роль)</div>
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 sticky top-0 z-10">
+                <tr>
+                  <th className="text-left p-3 w-[44%]">Компетенция</th>
+                  <th className="text-left p-3">Эталон (ур.)</th>
+                  <th className="text-left p-3">Сотрудник</th>
+                </tr>
+              </thead>
+              <tbody>
+                {unionKeys(currentRole.competencies, emp.competencies).map((c, i) => {
+                  const stdLvl = currentRole.competencies?.[c] ?? 0;
+                  const empLvl = emp.competencies?.[c] ?? 0;
+                  return (
+                    <tr key={c} className={i%2?"bg-slate-50/50":""}>
+                      <td className="p-3">{c}</td>
+                      <td className="p-3"><Chip tone="indigo">{stdLvl}</Chip></td>
+                      <td className="p-3">{renderLevelCell(stdLvl, empLvl)}</td>
+                    </tr>
+                  );
+                })}
+                <tr className="border-t border-slate-200 bg-slate-50">
+                  <td className="p-3 font-medium">Итог (соответствие роли)</td>
+                  <td className="p-3" />
+                  <td className="p-3">
+                    <div className="font-semibold">{suitability}%</div>
+                    <div className="h-1.5 rounded bg-slate-100 mt-1">
+                      <div className="h-1.5 rounded bg-indigo-400" style={{width:`${suitability}%`}} />
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </Card>
+
+          {/* Выжимка */}
+          <Card className="p-4">
+            <div className="text-slate-500 text-xs mb-1">Краткая выжимка</div>
+            <div className="text-sm text-slate-700">{summaryLine}</div>
+          </Card>
+        </div>
       </div>
-    </div>
-  );
-}
-
-function Stat({ label, value, tone = "slate" }) {
-  const tones = {
-    slate: "bg-slate-100 text-slate-700",
-    indigo: "bg-indigo-100 text-indigo-700",
-    green: "bg-green-100 text-green-700",
-    rose: "bg-rose-100 text-rose-700",
-  };
-  return (
-    <div className={`rounded-xl px-3 py-2 text-sm ${tones[tone] || tones.slate}`}>
-      <div className="text-xs opacity-80">{label}</div>
-      <div className="font-semibold">{value}</div>
-    </div>
-  );
-}
-
-function Row({ label, value }) {
-  return (
-    <div className="flex items-center justify-between">
-      <div className="text-slate-600 dark:text-slate-300">{label}</div>
-      <div className="font-medium">{value}</div>
-    </div>
+    </Page>
   );
 }
