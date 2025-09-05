@@ -5,6 +5,7 @@ import { exportJSON } from "../../lib/exporters/exportJSON.js";
 import { upsertRoleStandard } from "../../lib/rolesRegistry.js";
 import { Badge, Button, Input, Select, Textarea } from "../../components/ui";
 import Card from "../../components/ui/Card.jsx";
+import { exportRoleAsPDF, exportRoleAsWord } from "../../lib/exporters/exportRole.js";
 
 /* ──────────────────────────────────────────────────────────────────────────
    Адаптеры данных + генераторы заглушек
@@ -253,15 +254,15 @@ export default function RoleDetailsView({ role }) {
           <div className="flex items-center gap-2 shrink-0">
             {!edit ? (
               <>
-                <Button
-                  variant="ghost"
-                  onClick={() => exportJSON(toCanonical(model), `${model.name.replace(/\s+/g, "_")}_${model.version}.json`)}
-                >
-                  Экспорт JSON
+                <Button variant="ghost" onClick={() => exportRoleAsPDF(role)}>
+                  Экспорт PDF
+                </Button>
+                  <Button variant="ghost" onClick={() => exportRoleAsWord(role)}>
+                  Экспорт Word
                 </Button>
                 <Button variant="outline" onClick={() => setEdit(true)}>
                   Редактировать
-                </Button>
+                </Button>                                
                 <Button variant="outline" onClick={() => navigate("/roles")}>
                   К списку ролей
                 </Button>

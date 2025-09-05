@@ -1,13 +1,16 @@
+// src/components/layout/Sidebar.jsx
 import React from "react";
 import { NavLink } from "react-router-dom";
 
 const nav = [
-  { to: "/org", label: "Структура", icon: "org" },
-  { to: "/roles", label: "Эталон ролей", icon: "roles" },
-  { to: "/development", label: "Развитие", icon: "dev" },
-  { to: "/succession", label: "Кадровый резерв", icon: "succ" },
-  { to: "/employees", label: "Сотрудники", icon: "users" },
-  { to: "/settings", label: "Настройки", icon: "settings" },
+  { to: "/org",          label: "Структура",        icon: "org" },
+  { to: "/roles",        label: "Эталон ролей",     icon: "roles" },
+  // Важно: ведём на /development (редиректит на /development/standard).
+  // Ссылку на /development/manual намеренно НЕ показываем в сайдбаре.
+  { to: "/development",  label: "Развитие",         icon: "dev" },
+  { to: "/succession",   label: "Кадровый резерв",  icon: "succ" },
+  { to: "/employees",    label: "Сотрудники",       icon: "users" },
+  { to: "/settings",     label: "Настройки",        icon: "settings" },
 ];
 
 export default function Sidebar() {
@@ -24,6 +27,7 @@ export default function Sidebar() {
           <NavLink
             key={i.to}
             to={i.to}
+            end={i.to === "/org" || i.to === "/roles" || i.to === "/succession" || i.to === "/employees" || i.to === "/settings" ? true : false}
             className={({ isActive }) =>
               [
                 "group flex items-center gap-3 px-3 py-2 rounded-2xl transition",
@@ -33,6 +37,7 @@ export default function Sidebar() {
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
               ].join(" ")
             }
+            title={i.label}
           >
             <Icon name={i.icon} className="w-5 h-5 text-slate-400 group-hover:text-slate-600" />
             <span className="text-sm">{i.label}</span>
@@ -52,7 +57,6 @@ export default function Sidebar() {
 }
 
 function Icon({ name, className = "" }) {
-  // простые SVG без зависимостей
   const common = { className, fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" };
   switch (name) {
     case "org":
@@ -98,7 +102,7 @@ function Icon({ name, className = "" }) {
       return (
         <svg viewBox="0 0 24 24" {...common}>
           <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
-          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.17a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 008 4.6 1.65 1.65 0 009 3.09V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9c.57 0 1.1.24 1.47.63.38.39.6.92.6 1.47s-.22 1.08-.6 1.47A1.99 1.99 0 0019.4 15z" />
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.17a1.65 1.65 0 00-1 1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 008 4.6 1.65 1.65 0 009 3.09V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9c.57 0 1.1.24 1.47.63.38.39.6.92.6 1.47s-.22 1.08-.6 1.47A1.99 1.99 0 0019.4 15z" />
         </svg>
       );
     default:
