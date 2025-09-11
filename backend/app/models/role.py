@@ -1,5 +1,6 @@
 import uuid
 from sqlalchemy.orm import Mapped, mapped_column
+from datetime import datetime
 from sqlalchemy import String, Text, JSON, Integer, Enum, DateTime
 from sqlalchemy.sql import func
 from app.core.db import Base
@@ -24,10 +25,6 @@ class Role(Base):
     assessment_guidelines: Mapped[dict] = mapped_column(JSON, default=dict)
     test_assignment: Mapped[dict] = mapped_column(JSON, default=dict)
     assessment_center: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped["DateTime"] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped["DateTime"] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    __table_args__ = (
-        # (name, version) уникальны
-        {"sqlite_autoincrement": False},
-    )

@@ -8,6 +8,7 @@ uvicorn app.main:app --reload
 # Dev (с Docker)
 copy .env.example .env
 docker compose up --build
+docker compose exec api python -m app.seed # Запуск файла seed
 
 # Alembic (после настройки DB_URL на Supabase)
 alembic init app/migrations

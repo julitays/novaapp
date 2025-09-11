@@ -11,3 +11,4 @@ class TokenPair(BaseModel):
 class MeResponse(BaseModel):
     email: EmailStr
     role: str
+    is_active: bool

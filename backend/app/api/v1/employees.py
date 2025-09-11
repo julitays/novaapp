@@ -1,13 +1,21 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
+
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
+
+from uuid import UUID
+
+from app.core.security import require_roles
 from app.core.db import get_db
 from app.models.employee import Employee
+from app.models.assessment import Assessment
+from app.schemas.assessment import AssessmentList, AssessmentOut
+from app.schemas.employee import EmployeeOut
 from app.schemas.employee import EmployeeList, EmployeeOut
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
-@router.get("", response_model=EmployeeList)
+@router.get("", response_model=EmployeeList, dependencies=[Depends(require_roles())])
 def list_employees(
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
@@ -39,3 +47,32 @@ def list_employees(
         items=[EmployeeOut.model_validate(i.__dict__) for i in items],
         page=page, per_page=per_page, total=total or 0
     )
+
+@router.get("/{employee_id}", response_model=EmployeeOut, dependencies=[Depends(require_roles())])
+def get_employee(employee_id: UUID, db: Session = Depends(get_db)):
+    obj = db.get(Employee, employee_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    # Валидация через pydantic
+    return EmployeeOut.model_validate(obj.__dict__)
+
+@router.get("/{employee_id}/assessments", response_model=AssessmentList, dependencies=[Depends(require_roles())])
+def list_employee_assessments(
+    employee_id: UUID,
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(30, ge=1, le=200),
+):
+    # проверим, что сотрудник существует (чёткая 404)
+    exists = db.get(Employee, employee_id)
+    if not exists:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    base = select(Assessment).where(Assessment.employee_id == employee_id)
+    total = db.scalar(select(func.count()).select_from(base.subquery()))
+    stmt = base.order_by(Assessment.date.desc()).offset((page - 1) * per_page).limit(per_page)
+    items = db.scalars(stmt).all()
+
+    # Преобразуем в схемы
+    out = [AssessmentOut.model_validate(i.__dict__) for i in items]
+    return AssessmentList(items=out, page=page, per_page=per_page, total=total or 0)
