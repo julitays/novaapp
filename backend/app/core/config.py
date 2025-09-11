@@ -1,16 +1,18 @@
-from pydantic_settings import BaseSettings
-from pydantic import AnyHttpUrl, field_validator
-from typing import List
+from typing import List, Union
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
     # Core
     APP_NAME: str = "NovaProfile API"
     API_V1_PREFIX: str = "/api/v1"
     ENV: str = "dev"
     DEBUG: bool = True
 
-    # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:5173"]
+    # CORS — допускаем строку или список
+    CORS_ORIGINS: Union[List[str], str] = "http://localhost:5173"
 
     # DB
     DB_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/postgres"
@@ -21,18 +23,23 @@ class Settings(BaseSettings):
     REFRESH_TTL_DAYS: int = 7
     ALGO: str = "HS256"
 
-    # Admin bootstrapping (для простого логина на MVP)
+    # Admin bootstrapping (MVP)
     ADMIN_EMAIL: str = "admin@example.com"
     ADMIN_PASSWORD: str = "Admin123!"
 
     @field_validator("CORS_ORIGINS", mode="before")
-    def split_cors(cls, v):
+    @classmethod
+    def parse_cors_origins(cls, v):
+        if isinstance(v, list):
+            return v
         if isinstance(v, str):
-            return [s.strip() for s in v.split(",") if s.strip()]
-        return v
-
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+            s = v.strip()
+            # если это JSON-массив
+            if s.startswith("[") and s.endswith("]"):
+                import json
+                return json.loads(s)
+            # иначе — строка через запятую
+            return [p.strip() for p in s.split(",") if p.strip()]
+        return ["http://localhost:5173"]
 
 settings = Settings()

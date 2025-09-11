@@ -1,51 +1,49 @@
+# backend/app/migrations/env.py
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 
-# <-- добавляем наши импорты
+# === ВАЖНО: импортируем settings и подставляем URL из .env ===
 from app.core.config import settings
 from app.core.db import Base
-# Важно: импортируем модели, чтобы автоген понимал схемы
-from app.models.user import User
-from app.models.employee import Employee
+from app.models.user import User  # noqa: F401
+from app.models.employee import Employee  # noqa: F401
 
-# Alembic Config object
 config = context.config
+fileConfig(config.config_file_name)
 
-# Логи из alembic.ini (можно оставить)
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# <-- Добавь эту строку: Alembic будет использовать DB_URL из settings
+config.set_main_option("sqlalchemy.url", settings.DB_URL)
 
-# Метаданные для автогенерации миграций
 target_metadata = Base.metadata
 
 def run_migrations_offline():
-    """Запуск без соединения (генерация SQL)."""
-    url = settings.DB_URL
+    url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
-        dialect_opts={"paramstyle": "named"},
+        compare_type=True,
     )
     with context.begin_transaction():
         context.run_migrations()
 
 def run_migrations_online():
-    """Запуск с реальным соединением."""
-    configuration = config.get_section(config.config_ini_section)
-    # КРИТИЧЕСКОЕ МЕСТО: пробрасываем наш URL из .env
-    configuration["sqlalchemy.url"] = settings.DB_URL
-
     connectable = engine_from_config(
-        configuration,
+        config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
-        future=True,
     )
-
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
-
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+        )
         with context.begin_transaction():
             context.run_migrations()
+
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()
