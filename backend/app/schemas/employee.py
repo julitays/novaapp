@@ -12,7 +12,7 @@ class EmployeeOut(BaseModel):
     unit: str
     region: str
     manager_id: Optional[UUID] = None
-    photo_url: Optional[str] = None
+    avatar_url: Optional[str] = None
     bio: str
     languages: Dict[str, str]
     contacts: Dict[str, str]

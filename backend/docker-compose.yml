@@ -1,4 +1,3 @@
-
 services:
   api:
     build:
@@ -6,26 +5,12 @@ services:
       dockerfile: Dockerfile
     container_name: novaprofile-api
     env_file: .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      TZ: Europe/Berlin
     ports:
       - "8000:8000"
     volumes:
       - ./app:/app/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    depends_on:
-      - db
-
-  db:
-    image: postgres:15
-    container_name: novaprofile-db
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: appdb
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
-volumes:
-  pgdata:
+    restart: unless-stopped
